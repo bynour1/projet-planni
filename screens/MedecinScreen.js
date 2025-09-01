@@ -6,11 +6,11 @@ const MedecinScreen = ({ navigation }) => {
       <Text style={styles.title}>Page Médecin</Text>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
+         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate('PlanningManagement')}
+          onPress={() => navigation.navigate('Planning')}
         >
-          <Text style={styles.buttonText}>Planning</Text>
+          <Text style={styles.buttonText}>planning</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

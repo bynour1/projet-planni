@@ -1,10 +1,10 @@
 // screens/Chat.js
 import { StyleSheet, Text, View } from 'react-native';
 
-export default function chatScreen() {
+export default function ChatScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>💬 Bienvenue dans le Chat !</Text>
+      <Text style={styles.text}>Chat</Text>
     </View>
   );
 }
