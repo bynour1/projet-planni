@@ -3,7 +3,11 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 export default function WelcomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
-      <Image source={require('../assets/images/icon.png')} style={styles.logo} />
+      <Image
+        source={require('../assets/images/icon.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
       <Text style={styles.title}>Bienvenue</Text>
 
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Medecin')}>

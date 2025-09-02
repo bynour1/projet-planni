@@ -14,11 +14,17 @@ const AdminScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-  style={styles.button}
-  onPress={() => navigation.navigate('PlanningScreen')}
->
-  <Text style={styles.buttonText}>Gérer les plannings</Text>
-</TouchableOpacity>
+          style={styles.button}
+          onPress={() => navigation.navigate('PlanningManagement')}
+        >
+          <Text style={styles.buttonText}>Gérer les plannings</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate('PlanningScreen')}
+        >
+          <Text style={styles.buttonText}>Gérer les plannings</Text>
+        </TouchableOpacity>
 
 
         <TouchableOpacity

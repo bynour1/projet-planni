@@ -1,28 +1,27 @@
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ParticipantsProvider } from './contexts/ParticipantsContext';
-import AdminScreen from './screens/AdminScreen';
-import MedecinScreen from './screens/MedecinScreen';
-import TechnicienScreen from './screens/TechnicienScreen';
-import WelcomeScreen from './screens/WelcomeScreen';
+// App.js
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import React from "react";
 
-const Stack = createNativeStackNavigator();
+import { PlanningProvider } from "./contexts/PlanningContext";
+import MedecinScreen from "./screens/MedecinScreen";
+import TechnicienScreen from "./screens/TechnicienScreen";
+// import PlanningScreen from "./screens/PlanningScreen";   // si tu en as besoin
+// import ChatScreen from "./screens/ChatScreen";           // si tu en as besoin
+
+const Stack = createStackNavigator();
 
 export default function App() {
   return (
-    <ParticipantsProvider>
+    <PlanningProvider>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName="Welcome">
-          <Stack.Screen
-            name="Welcome"
-            component={WelcomeScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="Admin" component={AdminScreen} />
-          <Stack.Screen name="Medecin" component={MedecinScreen} />
-          <Stack.Screen name="Technicien" component={TechnicienScreen} />
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {/* Ajoute/retire les écrans selon ton besoin */}
+          <Stack.Screen name="MedecinScreen" component={MedecinScreen} />
+          <Stack.Screen name="TechnicienScreen" component={TechnicienScreen} />
+          {/* <Stack.Screen name="AdminScreen" component={AdminScreen} /> */}
         </Stack.Navigator>
       </NavigationContainer>
-    </ParticipantsProvider>
+    </PlanningProvider>
   );
 }

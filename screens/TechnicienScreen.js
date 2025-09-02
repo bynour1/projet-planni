@@ -1,56 +1,52 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { usePlanning } from "../contexts/PlanningContext";
 
-const TechnicienScreen = ({ navigation }) => {
+export default function TechnicienScreen({ navigation }) {
+  const { planning } = usePlanning();
+  const jours = Object.keys(planning);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Page Technicien</Text>
+      <Text style={styles.title}>Planning du Technicien</Text>
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate('PlanningManagement')}
-        >
-          <Text style={styles.buttonText}>Planning</Text>
-        </TouchableOpacity>
+      <FlatList
+        data={jours}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => (
+          <View style={styles.dayContainer}>
+            <Text style={styles.day}>{item}</Text>
+            {(planning[item] || []).map((ev, idx) => (
+              <Text key={idx} style={styles.event}>
+                Médecin: {ev.medecin}, Technicien: {ev.technicien}, Adresse: {ev.address}
+              </Text>
+            ))}
+          </View>
+        )}
+      />
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate('Chat')}
-        >
-          <Text style={styles.buttonText}>Chat 💬</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Bouton Chat */}
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate('Chat')}
+      >
+        <Text style={styles.buttonText}>Chat 💬</Text>
+      </TouchableOpacity>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 40,
-  },
-  buttonContainer: {
-    width: '80%',
-    gap: 20,
-  },
+  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
+  title: { fontSize: 22, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
+  dayContainer: { marginBottom: 15, padding: 10, backgroundColor: "#f5f5f5", borderRadius: 8 },
+  day: { fontSize: 18, fontWeight: "bold" },
+  event: { marginLeft: 10, fontSize: 16, color: "#333" },
   button: {
-    backgroundColor: '#007bff',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
+    backgroundColor: "#007AFF",
+    padding: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 20,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-  },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });
-
-export default TechnicienScreen;
