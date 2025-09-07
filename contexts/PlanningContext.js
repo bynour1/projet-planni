@@ -1,38 +1,46 @@
-// contexts/PlanningContext.js
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 
-export const PlanningContext = createContext(null);
+export const PlanningContext = createContext();
 
 export const PlanningProvider = ({ children }) => {
-  // planning = { Lundi: [{ medecin, technicien, address }], ... }
-  const [planning, setPlanning] = useState({});
+  // planning = objet avec jours de la semaine
+  const [planning, setPlanning] = useState({
+    Lundi: [],
+    Mardi: [],
+    Mercredi: [],
+    Jeudi: [],
+    Vendredi: [],
+  });
 
-  const addPlanning = (day, medecin, technicien, address) => {
-    setPlanning(prev => ({
+  const addEvent = (jour, medecin, technicien, adresse) => {
+    setPlanning((prev) => ({
       ...prev,
-      [day]: [...(prev[day] || []), { medecin, technicien, address }],
+      [jour]: [...(prev[jour] || []), { medecin, technicien, adresse }],
     }));
   };
 
-  // (optionnel) pour tester l'affichage : des données par défaut
-  // useEffect(() => {
-  //   addPlanning("Lundi", "Dr. Ali", "Tech Sami", "Rue 1");
-  //   addPlanning("Mardi", "Dr. Amal", "Tech Hatem", "Rue 2");
-  // }, []);
+  const removeEvent = (jour, index) => {
+    setPlanning((prev) => ({
+      ...prev,
+      [jour]: prev[jour].filter((_, i) => i !== index),
+    }));
+  };
 
-  const value = useMemo(() => ({ planning, addPlanning }), [planning]);
+  const updateEvent = (jour, index, newEvent) => {
+    setPlanning((prev) => {
+      const updatedDay = [...prev[jour]];
+      updatedDay[index] = newEvent;
+      return { ...prev, [jour]: updatedDay };
+    });
+  };
 
   return (
-    <PlanningContext.Provider value={value}>
+    <PlanningContext.Provider
+      value={{ planning, addEvent, removeEvent, updateEvent }}
+    >
       {children}
     </PlanningContext.Provider>
   );
 };
 
-export const usePlanning = () => {
-  const ctx = useContext(PlanningContext);
-  if (!ctx) {
-    throw new Error("usePlanning doit être utilisé à l’intérieur d’un PlanningProvider");
-  }
-  return ctx;
-};
+export const usePlanning = () => useContext(PlanningContext);

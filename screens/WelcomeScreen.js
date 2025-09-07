@@ -26,16 +26,32 @@ export default function WelcomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  logo: { width: 120, height: 120, marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 30 },
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20 
+  },
+  logo: { 
+    width: 120, 
+    height: 120, 
+    marginBottom: 20 
+  },
+  title: { 
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    marginBottom: 30 
+  },
   button: {
     backgroundColor: '#007AFF',
     padding: 12,
     borderRadius: 8,
     marginBottom: 15,
     width: '80%',
-    alignItems: 'center',
+    alignItems: 'center'
   },
-  buttonText: { color: '#fff', fontSize: 18 },
+  buttonText: { 
+    color: '#fff', 
+    fontSize: 18 
+  }
 });

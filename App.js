@@ -1,25 +1,42 @@
 // App.js
 import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
-
 import { PlanningProvider } from "./contexts/PlanningContext";
-import MedecinScreen from "./screens/MedecinScreen";
-import TechnicienScreen from "./screens/TechnicienScreen";
-// import PlanningScreen from "./screens/PlanningScreen";   // si tu en as besoin
-// import ChatScreen from "./screens/ChatScreen";           // si tu en as besoin
 
-const Stack = createStackNavigator();
+// Écrans
+import AdminPlanningScreen from "./screens/AdminPlanningScreen";
+import AdminScreen from "./screens/AdminScreen";
+import ChatScreen from "./screens/chatScreen";
+import MedecinScreen from "./screens/MedecinScreen";
+import PlanningScreen from "./screens/PlanningScreen";
+import TechnicienScreen from "./screens/TechnicienScreen";
+import UserManagementScreen from "./screens/UserManagementScreen";
+import WelcomeScreen from "./screens/WelcomeScreen";
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <PlanningProvider>
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {/* Ajoute/retire les écrans selon ton besoin */}
-          <Stack.Screen name="MedecinScreen" component={MedecinScreen} />
-          <Stack.Screen name="TechnicienScreen" component={TechnicienScreen} />
-          {/* <Stack.Screen name="AdminScreen" component={AdminScreen} /> */}
+        <Stack.Navigator
+          initialRouteName="Welcome"
+          screenOptions={{ headerShown: false }}
+        >
+          {/* Accueil / rôle */}
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+
+          {/* Rôles */}
+          <Stack.Screen name="Admin" component={AdminScreen} />
+          <Stack.Screen name="Medecin" component={MedecinScreen} />
+          <Stack.Screen name="Technicien" component={TechnicienScreen} />
+
+          {/* Fonctionnalités */}
+          <Stack.Screen name="Planning" component={PlanningScreen} />
+          <Stack.Screen name="AdminPlanning" component={AdminPlanningScreen} />
+          <Stack.Screen name="Chat" component={ChatScreen} />
+          <Stack.Screen name="UserManagement" component={UserManagementScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </PlanningProvider>
