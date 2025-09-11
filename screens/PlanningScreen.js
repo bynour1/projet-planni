@@ -1,116 +1,161 @@
-import React, { useContext } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { PlanningContext } from "../contexts/PlanningContext";
+import { addDays, format, startOfWeek } from "date-fns";
+import React, { useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { usePlanning } from "../contexts/PlanningContext";
 
-export default function PlanningScreen({ userRole }) {
-  const { planning, addEvent, removeEvent, updateEvent } = useContext(PlanningContext);
+export default function PlanningScreen() {
+  const { planning, addEvent, removeEvent, updateEvent } = usePlanning();
 
-  // pour l'admin seulement
-  const [editingIndex, setEditingIndex] = React.useState(null);
-  const [editingJour, setEditingJour] = React.useState("");
-  const [editingMed, setEditingMed] = React.useState("");
-  const [editingTech, setEditingTech] = React.useState("");
-  const [editingAdr, setEditingAdr] = React.useState("");
+  const startWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const days = Array.from({ length: 5 }, (_, i) => addDays(startWeek, i));
 
-  const [jour, setJour] = React.useState("");
-  const [medecin, setMedecin] = React.useState("");
-  const [technicien, setTechnicien] = React.useState("");
-  const [adresse, setAdresse] = React.useState("");
+  const [editingDay, setEditingDay] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [form, setForm] = useState({ medecin: "", technicien: "", adresse: "" });
 
-  const joursSemaine = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
-
-  const handleAdd = () => {
-    if (!jour || !medecin || !technicien || !adresse) return;
-    addEvent(jour, medecin, technicien, adresse);
-    setMedecin(""); setTechnicien(""); setAdresse("");
+  const handleAdd = (dayLabel) => {
+    if (!form.medecin || !form.technicien || !form.adresse) return;
+    addEvent(dayLabel, form.medecin, form.technicien, form.adresse);
+    setForm({ medecin: "", technicien: "", adresse: "" });
+    setEditingDay(null);
   };
 
-  const handleSaveEdit = () => {
-    updateEvent(editingJour, editingIndex, {
-      medecin: editingMed,
-      technicien: editingTech,
-      adresse: editingAdr
-    });
+  const handleUpdate = (dayLabel) => {
+    if (!form.medecin || !form.technicien || !form.adresse) return;
+    updateEvent(dayLabel, editingIndex, { ...form });
+    setForm({ medecin: "", technicien: "", adresse: "" });
+    setEditingDay(null);
     setEditingIndex(null);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>📅 Planning Hebdomadaire</Text>
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerCell}>Jour / Date</Text>
+        <Text style={styles.headerCell}>Médecin</Text>
+        <Text style={styles.headerCell}>Technicien</Text>
+        <Text style={styles.headerCell}>Adresse</Text>
+        <Text style={styles.headerCell}>Actions</Text>
+      </View>
 
-      {userRole === "admin" && (
-        <>
-          {/* Formulaire Ajouter */}
-          <TextInput placeholder="Jour" value={jour} onChangeText={setJour} style={styles.input} />
-          <TextInput placeholder="Médecin" value={medecin} onChangeText={setMedecin} style={styles.input} />
-          <TextInput placeholder="Technicien" value={technicien} onChangeText={setTechnicien} style={styles.input} />
-          <TextInput placeholder="Adresse" value={adresse} onChangeText={setAdresse} style={styles.input} />
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-            <Text style={styles.addText}>+ Ajouter</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      {days.map((day, idx) => {
+        const dayLabel = format(day, "EEEE dd/MM");
+        const events = planning[dayLabel] || [];
 
-      {joursSemaine.map((day) => (
-        <View key={day} style={styles.dayContainer}>
-          <Text style={styles.dayTitle}>{day}</Text>
-          {(planning[day] || []).map((ev, idx) => (
-            <View key={idx} style={styles.eventContainer}>
-              {userRole === "admin" && editingIndex === idx && editingJour === day ? (
-                <>
-                  <TextInput value={editingMed} onChangeText={setEditingMed} style={styles.input} />
-                  <TextInput value={editingTech} onChangeText={setEditingTech} style={styles.input} />
-                  <TextInput value={editingAdr} onChangeText={setEditingAdr} style={styles.input} />
-                  <TouchableOpacity style={styles.addButton} onPress={handleSaveEdit}>
-                    <Text style={styles.addText}>💾 Enregistrer</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text>Médecin : {ev.medecin}</Text>
-                  <Text>Technicien : {ev.technicien}</Text>
-                  <Text>Adresse : {ev.adresse}</Text>
-                </>
-              )}
+        return (
+          <View key={idx} style={styles.dayContainer}>
+            {events.length === 0 && editingDay !== dayLabel && (
+              <Text style={styles.noEvent}>Aucun événement</Text>
+            )}
 
-              {userRole === "admin" && (
-                <View style={styles.buttonRow}>
-                  <TouchableOpacity style={styles.deleteButton} onPress={() => removeEvent(day, idx)}>
-                    <Text style={styles.deleteText}>Supprimer</Text>
-                  </TouchableOpacity>
-                  {editingIndex === idx && editingJour === day ? null : (
-                    <TouchableOpacity style={styles.modifyButton} onPress={() => {
-                      setEditingIndex(idx);
-                      setEditingJour(day);
-                      setEditingMed(ev.medecin);
-                      setEditingTech(ev.technicien);
-                      setEditingAdr(ev.adresse);
-                    }}>
-                      <Text style={styles.modifyText}>Modifier</Text>
+            {events.map((ev, i) => (
+              <View key={i} style={styles.row}>
+                {editingDay === dayLabel && editingIndex === i ? (
+                  <View style={{ flexDirection: "row", flex: 1, alignItems: "center" }}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Médecin"
+                      value={form.medecin}
+                      onChangeText={(text) => setForm({ ...form, medecin: text })}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Technicien"
+                      value={form.technicien}
+                      onChangeText={(text) => setForm({ ...form, technicien: text })}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Adresse"
+                      value={form.adresse}
+                      onChangeText={(text) => setForm({ ...form, adresse: text })}
+                    />
+                    <TouchableOpacity style={styles.button} onPress={() => handleUpdate(dayLabel)}>
+                      <Text style={styles.buttonText}>💾 Sauvegarder</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-      ))}
-    </View>
+                  </View>
+                ) : (
+                  <View style={styles.row}>
+                    <Text style={styles.cell}>{dayLabel}</Text>
+                    <Text style={styles.cell}>{ev.medecin}</Text>
+                    <Text style={styles.cell}>{ev.technicien}</Text>
+                    <Text style={styles.cell}>{ev.adresse}</Text>
+                    <View style={styles.actions}>
+                      <TouchableOpacity
+                        style={styles.smallButton}
+                        onPress={() => {
+                          setEditingDay(dayLabel);
+                          setEditingIndex(i);
+                          setForm(ev);
+                        }}
+                      >
+                        <Text style={styles.buttonText}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.smallButton}
+                        onPress={() => removeEvent(dayLabel, i)}
+                      >
+                        <Text style={styles.buttonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {editingDay === dayLabel && editingIndex === null && (
+              <View style={styles.row}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Médecin"
+                  value={form.medecin}
+                  onChangeText={(text) => setForm({ ...form, medecin: text })}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Technicien"
+                  value={form.technicien}
+                  onChangeText={(text) => setForm({ ...form, technicien: text })}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Adresse"
+                  value={form.adresse}
+                  onChangeText={(text) => setForm({ ...form, adresse: text })}
+                />
+                <TouchableOpacity style={styles.button} onPress={() => handleAdd(dayLabel)}>
+                  <Text style={styles.buttonText}>💾 Enregistrer</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {editingDay !== dayLabel && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setEditingDay(dayLabel)}
+              >
+                <Text style={styles.buttonText}>+ Ajouter</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  title: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: "#ccc", padding: 8, borderRadius: 5, marginBottom: 10 },
-  addButton: { backgroundColor: "#007bff", padding: 10, borderRadius: 5, marginBottom: 10, alignItems: "center" },
-  addText: { color: "#fff", fontWeight: "bold" },
-  dayContainer: { marginBottom: 15 },
-  dayTitle: { fontWeight: "bold", fontSize: 16 },
-  eventContainer: { padding: 8, backgroundColor: "#f5f5f5", borderRadius: 5, marginBottom: 5 },
-  buttonRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 5 },
-  deleteButton: { backgroundColor: "red", padding: 5, borderRadius: 5, flex: 1, marginRight: 5, alignItems: "center" },
-  modifyButton: { backgroundColor: "orange", padding: 5, borderRadius: 5, flex: 1, marginLeft: 5, alignItems: "center" },
-  deleteText: { color: "#fff", fontWeight: "bold" },
-  modifyText: { color: "#fff", fontWeight: "bold" },
+  container: { flex: 1, padding: 10, backgroundColor: "#fff" },
+  header: { flexDirection: "row", borderBottomWidth: 1, paddingBottom: 5, marginBottom: 5 },
+  headerCell: { flex: 1, fontWeight: "bold", textAlign: "center" },
+  dayContainer: { marginBottom: 10 },
+  row: { flexDirection: "row", alignItems: "center", marginBottom: 5 },
+  cell: { flex: 1, textAlign: "center" },
+  actions: { flexDirection: "row" },
+  smallButton: { backgroundColor: "#007bff", padding: 5, borderRadius: 5, marginHorizontal: 2 },
+  button: { backgroundColor: "#007bff", padding: 8, borderRadius: 5, marginLeft: 5 },
+  addButton: { backgroundColor: "#28a745", padding: 8, borderRadius: 5, alignItems: "center", marginTop: 5 },
+  buttonText: { color: "#fff", fontWeight: "bold", textAlign: "center" },
+  input: { borderWidth: 1, borderColor: "#ccc", padding: 5, borderRadius: 5, marginHorizontal: 2, flex: 1 },
+  noEvent: { textAlign: "center", fontStyle: "italic", color: "#999", marginBottom: 5 },
 });

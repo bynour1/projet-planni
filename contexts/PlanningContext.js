@@ -3,15 +3,10 @@ import React, { createContext, useContext, useState } from "react";
 export const PlanningContext = createContext();
 
 export const PlanningProvider = ({ children }) => {
-  // planning = objet avec jours de la semaine
-  const [planning, setPlanning] = useState({
-    Lundi: [],
-    Mardi: [],
-    Mercredi: [],
-    Jeudi: [],
-    Vendredi: [],
-  });
+  // Maintenant, le planning commence vide : aucun jour fixe
+  const [planning, setPlanning] = useState({});
 
+  // Ajouter un événement
   const addEvent = (jour, medecin, technicien, adresse) => {
     setPlanning((prev) => ({
       ...prev,
@@ -19,13 +14,20 @@ export const PlanningProvider = ({ children }) => {
     }));
   };
 
+  // Supprimer un événement
   const removeEvent = (jour, index) => {
-    setPlanning((prev) => ({
-      ...prev,
-      [jour]: prev[jour].filter((_, i) => i !== index),
-    }));
+    setPlanning((prev) => {
+      const updatedDay = prev[jour].filter((_, i) => i !== index);
+      // Si le jour devient vide, on le supprime complètement
+      if (updatedDay.length === 0) {
+        const { [jour]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [jour]: updatedDay };
+    });
   };
 
+  // Modifier un événement
   const updateEvent = (jour, index, newEvent) => {
     setPlanning((prev) => {
       const updatedDay = [...prev[jour]];
@@ -34,9 +36,14 @@ export const PlanningProvider = ({ children }) => {
     });
   };
 
+  // Ajouter un planning hebdomadaire complet
+  const addWeeklyPlanning = (planningSemaine) => {
+    setPlanning(planningSemaine); // remplace complètement l'ancien planning
+  };
+
   return (
     <PlanningContext.Provider
-      value={{ planning, addEvent, removeEvent, updateEvent }}
+      value={{ planning, addEvent, removeEvent, updateEvent, addWeeklyPlanning }}
     >
       {children}
     </PlanningContext.Provider>
