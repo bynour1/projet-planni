@@ -7,6 +7,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const dns = require('dns').promises;
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const http = require('http');
@@ -14,12 +15,43 @@ const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, { cors: { origin: '*' } });
 const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'votre_secret_jwt_changez_moi_en_production';
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
 
 const db = require('./db/database');
+
+// ===== MIDDLEWARE D'AUTHENTIFICATION =====
+// Vérifie le token JWT et extrait les infos utilisateur
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer TOKEN"
+  
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Token manquant. Authentification requise.' });
+  }
+  
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ success: false, message: 'Token invalide ou expiré.' });
+    }
+    req.user = user; // { id, email, role }
+    next();
+  });
+}
+
+// Middleware pour vérifier que l'utilisateur est admin
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Accès refusé. Droits administrateur requis.' });
+  }
+  next();
+}
+
+// Middleware combiné : authentification + admin
+const adminOnly = [authenticateToken, requireAdmin];
 
 // Configure Nodemailer transporter using environment variables.
 // Support either a named service (EMAIL_SERVICE) or explicit SMTP settings (SMTP_HOST/SMTP_PORT/SMTP_SECURE).
@@ -47,6 +79,58 @@ function createTransporter() {
 
 const transporter = createTransporter();
 
+// ===== ENDPOINT DE LOGIN =====
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email et mot de passe requis.' });
+  }
+  
+  try {
+    // Récupérer l'utilisateur
+    const user = await db.findUserByEmail(email);
+    
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect.' });
+    }
+    
+    if (!user.isConfirmed) {
+      return res.status(401).json({ success: false, message: 'Compte non confirmé. Veuillez vérifier votre email.' });
+    }
+    
+    // Vérifier le mot de passe
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect.' });
+    }
+    
+    // Générer le token JWT
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    return res.json({
+      success: true,
+      message: 'Connexion réussie',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        prenom: user.prenom,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors du login:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur.' });
+  }
+});
+
 // Utility: send confirmation either by email or by SMS (Twilio)
 async function sendConfirmationContact(to, code) {
   // if looks like email -> send email
@@ -70,20 +154,24 @@ async function sendConfirmationContact(to, code) {
   return twilio.messages.create({ body: `Votre code de confirmation est : ${code}`, from: fromNumber, to });
 }
 
-// GET users (for frontend to load existing users)
-app.get('/users', async (req, res) => {
+// GET users (pour charger la liste des utilisateurs)
+// Accessible par tous les utilisateurs authentifiés pour voir leurs collègues
+app.get('/users', authenticateToken, async (req, res) => {
   const users = await db.getUsers();
-  res.json({ success: true, users });
+  // Ne pas exposer les mots de passe
+  const safeUsers = users.map(u => ({ id: u.id, email: u.email, nom: u.nom, prenom: u.prenom, role: u.role, isConfirmed: u.isConfirmed }));
+  res.json({ success: true, users: safeUsers });
 });
 
 // Planning endpoints
-app.get('/planning', async (req, res) => {
+// Consultation du planning : accessible à tous les utilisateurs authentifiés
+app.get('/planning', authenticateToken, async (req, res) => {
   const planning = await db.getPlanning();
   res.json({ success: true, planning });
 });
 
-// Replace whole planning
-app.post('/planning/replace', async (req, res) => {
+// Replace whole planning - ADMIN ONLY
+app.post('/planning/replace', adminOnly, async (req, res) => {
   const { planning } = req.body;
   if (!planning || typeof planning !== 'object') return res.status(400).json({ success: false, message: 'Planning invalide' });
   await db.savePlanning(planning);
@@ -91,8 +179,8 @@ app.post('/planning/replace', async (req, res) => {
   res.json({ success: true, message: 'Planning remplacé' });
 });
 
-// Add event
-app.post('/planning/event', async (req, res) => {
+// Add event - ADMIN ONLY
+app.post('/planning/event', adminOnly, async (req, res) => {
   const { jour, event } = req.body;
   if (!jour || !event) return res.status(400).json({ success: false, message: 'Données manquantes' });
   const planning = await db.getPlanning();
@@ -102,8 +190,8 @@ app.post('/planning/event', async (req, res) => {
   res.json({ success: true, planning });
 });
 
-// Update event
-app.put('/planning/event', async (req, res) => {
+// Update event - ADMIN ONLY
+app.put('/planning/event', adminOnly, async (req, res) => {
   const { jour, index, event } = req.body;
   if (!jour || typeof index !== 'number' || !event) return res.status(400).json({ success: false, message: 'Données manquantes' });
   const planning = await db.getPlanning();
@@ -114,8 +202,8 @@ app.put('/planning/event', async (req, res) => {
   res.json({ success: true, planning });
 });
 
-// Delete event
-app.delete('/planning/event', async (req, res) => {
+// Delete event - ADMIN ONLY
+app.delete('/planning/event', adminOnly, async (req, res) => {
   const { jour, index } = req.body;
   if (!jour || typeof index !== 'number') return res.status(400).json({ success: false, message: 'Données manquantes' });
   const planning = await db.getPlanning();
@@ -176,8 +264,8 @@ app.post('/send-code', async (req, res) => {
   }
 });
 
-// Admin: invite a user (create user entry without confirming) and send code
-app.post('/invite-user', async (req, res) => {
+// Admin: invite a user (create user entry without confirming) and send code - ADMIN ONLY
+app.post('/invite-user', adminOnly, async (req, res) => {
   // Accept contact (email or phone) for invitation
   const { contact, nom = '', prenom = '', role = 'medecin' } = req.body;
   if (!contact) return res.status(400).json({ success: false, message: 'Contact manquant' });
@@ -253,8 +341,8 @@ app.post('/admin/activate', async (req, res) => {
 });
 
 // Calendar / Events endpoints
-// Create an event in a calendar
-app.post('/calendars/:id/events', async (req, res) => {
+// Create an event in a calendar - ADMIN ONLY
+app.post('/calendars/:id/events', adminOnly, async (req, res) => {
   const calendarId = req.params.id || null;
   const { organizerEmail, title, description, startAt, endAt, timezone, location, recurrence, attendees } = req.body;
   if (!startAt || !endAt || !title) return res.status(400).json({ success: false, message: 'Données d\'événement manquantes' });
@@ -279,8 +367,8 @@ app.post('/calendars/:id/events', async (req, res) => {
   }
 });
 
-// Get events for a calendar (optionally in a date range)
-app.get('/calendars/:id/events', async (req, res) => {
+// Get events for a calendar (optionally in a date range) - accessible à tous
+app.get('/calendars/:id/events', authenticateToken, async (req, res) => {
   const calendarId = req.params.id || null;
   const { rangeStart, rangeEnd } = req.query;
   try {
@@ -340,8 +428,8 @@ app.post('/verify-code', async (req, res) => {
   return res.status(400).json({ success: false, message: 'Code invalide' });
 });
 
-// Route pour créer/mettre à jour un utilisateur (attend nom, prenom, email, password, role)
-app.post('/create-user', async (req, res) => {
+// Route pour créer/mettre à jour un utilisateur - ADMIN ONLY
+app.post('/create-user', adminOnly, async (req, res) => {
   const { email, password, nom, prenom, role } = req.body;
   if (!email || !password || !nom) return res.status(400).json({ success: false, message: 'Données manquantes' });
   const hashed = await bcrypt.hash(password, 10);
@@ -349,11 +437,16 @@ app.post('/create-user', async (req, res) => {
   return res.json({ success: true, message: 'Utilisateur créé/mis à jour' });
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 Serveur en cours d'exécution sur http://localhost:${PORT}`);
-});
+// Wait for DB initialization before starting server
+(async () => {
+  await db.waitForInit();
+  
+  server.listen(PORT, () => {
+    console.log(`🚀 Serveur en cours d'exécution sur http://localhost:${PORT}`);
+  });
 
-io.on('connection', (socket) => {
-  console.log('Socket connected:', socket.id);
-  socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
-});
+  io.on('connection', (socket) => {
+    console.log('Socket connected:', socket.id);
+    socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
+  });
+})();

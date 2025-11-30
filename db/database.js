@@ -54,9 +54,15 @@ async function writePlanningFile(obj) {
 // Optional MySQL support (XAMPP)
 let useMySQL = false;
 let pool = null;
+let mysqlInitPromise = null;
+
 async function initMySQL() {
   const host = process.env.DB_HOST;
-  if (!host) return false; // not configured
+  if (!host) {
+    console.log('MySQL not configured, using file-based storage');
+    return false;
+  }
+  
   try {
     const mysql = require('mysql2/promise');
     const port = process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306;
@@ -73,18 +79,21 @@ async function initMySQL() {
     // quick test connection
     await pool.query('SELECT 1');
     useMySQL = true;
-    console.log('Using MySQL database for persistence');
+    console.log('✅ MySQL database connected');
     return true;
   } catch (err) {
-    console.warn('MySQL init failed, falling back to file-based storage:', err && err.message);
+    console.warn('⚠️ MySQL init failed, using file-based storage:', err.message);
     pool = null;
     useMySQL = false;
     return false;
   }
 }
 
-// Initialize MySQL if configured (do not throw)
-initMySQL();
+// Initialize MySQL on first module load (wrapped in Promise to handle async)
+mysqlInitPromise = initMySQL().catch(err => {
+  console.error('Error initializing MySQL:', err);
+  return false;
+});
 
 // SQL helpers
 async function query(sql, params) {
@@ -100,6 +109,11 @@ async function execute(sql, params) {
 }
 
 module.exports = {
+  // Wait for MySQL initialization
+  waitForInit: async () => {
+    await mysqlInitPromise;
+    return useMySQL;
+  },
   async getUsers() {
     if (useMySQL && pool) {
         const rows = await query('SELECT id, email, password, nom, prenom, role, isConfirmed FROM users');
@@ -167,7 +181,7 @@ module.exports = {
       try {
         await execute(`INSERT INTO attendees (event_id, email, phone, status, can_edit, invited_by) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status = VALUES(status), can_edit = VALUES(can_edit), invited_by = VALUES(invited_by)`, [eventId, email, phone, 'invited', canEdit ? 1 : 0, invitedBy]);
         return true;
-      } catch (err) {
+      } catch (_err) {
         // ignore duplicate or other errors
         return false;
       }
