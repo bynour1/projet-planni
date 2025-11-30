@@ -1,0 +1,34 @@
+[
+  {
+    "email": "admin@hopital.com",
+    "password": "",
+    "isConfirmed": true,
+    "role": "admin",
+    "nom": "Admin",
+    "prenom": ""
+  },
+  {
+    "email": "medecin1@hopital.com",
+    "password": "",
+    "isConfirmed": false,
+    "role": "medecin",
+    "nom": "Medecin",
+    "prenom": "1"
+  },
+  {
+    "email": "technicien1@hopital.com",
+    "password": "",
+    "isConfirmed": false,
+    "role": "technicien",
+    "nom": "Technicien",
+    "prenom": "1"
+  },
+  {
+    "email": "testuser@hopital.com",
+    "password": "$2a$10$ondYBe5cKbroRHoiEG8llu2fLGD0JZZBjkzmVkOwQP4Va8ahq3P8G",
+    "isConfirmed": true,
+    "role": "medecin",
+    "nom": "Test",
+    "prenom": "User"
+  }
+]

@@ -1,0 +1,43 @@
+https://github.com/bynour1/projet-planni.git                
+Pour résumer tes prochaines étapes quand tu ajoutes des changements (Tranche 3, Tranche 4, etc.) :
+
+git add .
+git commit -m "Ajout de la tranche X"
+git push
+
+
+
+Ajouter le bouton pour accéder au Chat
+
+Dans tous les écrans (AdminScreen, MedecinScreen, TechnicienScreen) :
+
+<TouchableOpacity
+  style={styles.button}
+  onPress={() => navigation.navigate('Chat')}
+>
+  <Text style={styles.buttonText}>Chat 💬</Text>
+</TouchableOpacity>             
+
+
+non voila  ma structure                                                               projet-planning/ 
+│
+├── contexts /                                                                      
+│   ├── AuthContext.js                                                                    
+│   ├── ChatContext.js                                                                     
+│   ├── ParticipantsContext.js                                                                    
+│   ├── PlanningContext.js                                                                │   └── UserContext.js                                                                    ├──navigation /
+│   ├── AppNavigator.js
+│   
+│── node_modules/  
+├── screens /                                                                      
+│   ├── AdminPlanningScreen.js                                                                   
+│   ├── AdminScreen.js                                                                     
+│   ├──chatScreen.js                                                                    
+│   ├── MedecinScreen.js                                                                      
+│   ├── PlanningScreen.js                                                                   
+│   ├── TechnicienScreen.js                                                                     
+│   ├──UserManagementScreen.js                                                                    
+│   ├── WelcomeScreen.js                                                                    │ 
+├── app.js /                                                                                │ 
+├── package.json/                                                                              │ 
+├── package-lock.json /                                                                                               

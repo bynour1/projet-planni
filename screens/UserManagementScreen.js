@@ -1,27 +1,102 @@
-import { useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Picker } from "@react-native-picker/picker";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 // Base d'utilisateurs déjà créés par admin
-let usersList = [
-  { email: "admin@hopital.com", password: "", isConfirmed: false },
-  { email: "medecin1@hopital.com", password: "", isConfirmed: false },
-  { email: "technicien1@hopital.com", password: "", isConfirmed: false },
-];
+// initial local placeholder; real users are fetched from backend
+let usersList = [];
 
 export default function UserManagementScreen() {
+  const [users, setUsers] = useState([]);
+  // load users from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetch('http://localhost:5000/users');
+        const json = await resp.json();
+        if (json.success) setUsers(json.users);
+      } catch (e) {
+        console.warn('Impossible de charger les utilisateurs', e);
+      }
+    })();
+  }, []);
+  const [loading, setLoading] = useState(false);
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [role, setRole] = useState("medecin");
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState(1); // 1 = email, 2 = code, 3 = mot de passe
+  const [emailError, setEmailError] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("medecin");
+  const [inviteName, setInviteName] = useState("");
+  const [invitePrenom, setInvitePrenom] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [lastInvitedId, setLastInvitedId] = useState(null);
+  const [inviteEmailError, setInviteEmailError] = useState('');
+  const [inviteChecking, setInviteChecking] = useState(false);
+  const inviteCheckRef = useRef(null);
+  const [step, setStep] = useState(1); // 1 = infos + email, 2 = code, 3 = mot de passe
   const [code, setCode] = useState("");
-  const [generatedCode, setGeneratedCode] = useState("");
   const [password, setPassword] = useState("");
+  const [refresh, setRefresh] = useState(false); // pour forcer FlatList à refresh
 
-  // Étape 1 : Vérifier l'email
-  const handleNextStep = () => {
+  // Validate email locally: proper format and exists in backend users list
+  // Debounced check for invite email: format, existing, MX via backend
+  useEffect(() => {
+    setInviteEmailError('');
+    if (inviteCheckRef.current) clearTimeout(inviteCheckRef.current);
+    if (!inviteEmail) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail)) {
+      setInviteEmailError("Format d'email invalide");
+      return;
+    }
+    inviteCheckRef.current = setTimeout(async () => {
+      setInviteChecking(true);
+      try {
+        const res = await fetch('http://localhost:5000/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: inviteEmail }) });
+        const j = await res.json();
+        if (j && j.success) {
+          if (j.exists && j.isConfirmed) setInviteEmailError('Cet email est déjà actif');
+          else if (j.exists && !j.isConfirmed) setInviteEmailError('Cet email a déjà été invité (en attente)');
+          else if (!j.mxOk) setInviteEmailError('Domaine de messagerie invalide (MX introuvable)');
+          else setInviteEmailError('');
+        }
+      } catch (err) {
+        setInviteEmailError('Impossible de vérifier le domaine actuellement');
+      }
+      setInviteChecking(false);
+    }, 700);
+    return () => { if (inviteCheckRef.current) clearTimeout(inviteCheckRef.current); };
+  }, [inviteEmail]);
+
+  useEffect(() => {
+    if (!email) { setEmailError(""); return; }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailError("Email invalide");
+      return;
+    }
+    const existing = users.find(u => u.email === email);
+    if (!existing) {
+      setEmailError("Email inconnu. Contactez l'admin.");
+      return;
+    }
+    if (existing.isConfirmed) {
+      setEmailError("Ce compte est déjà actif. Connectez-vous.");
+      return;
+    }
+    setEmailError("");
+  }, [email, users]);
+
+  // Étape 1 : Vérifier l'email et envoyer le code via backend
+  const handleNextStep = async () => {
+    if (!nom || !prenom) return Alert.alert("Erreur", "Veuillez entrer votre nom et prénom !");
     if (!email) return Alert.alert("Erreur", "Veuillez entrer un email !");
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) return Alert.alert("Erreur", "Email invalide !");
 
-    const existingUser = usersList.find((u) => u.email === email);
+    const existingUser = users.find((u) => u.email === email);
     if (!existingUser) return Alert.alert("Erreur", "Email inconnu ! Contactez l'admin.");
 
     if (existingUser.isConfirmed) {
@@ -29,90 +104,228 @@ export default function UserManagementScreen() {
       return;
     }
 
-    // Générer un code aléatoire à 6 chiffres
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(newCode);
-    Alert.alert("Email reconnu", `Un code de confirmation a été envoyé à ${email}.\n(Code simulé: ${newCode})`);
-    setStep(2); // passer à la saisie du code
+    try {
+      // Appel backend pour envoyer un email avec code
+      const response = await fetch("http://localhost:5000/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // If backend returned code (dev mode), show it in console for testing
+        if (data.code) console.log('Code (dev):', data.code);
+        Alert.alert("Email reconnu", `Un code de confirmation a été envoyé à ${email}`);
+        setStep(2); // passer à la saisie du code
+      } else {
+        Alert.alert("Erreur", data.message || "Impossible d'envoyer l'email");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Erreur", "Problème de connexion au serveur");
+    }
   };
 
-  // Étape 2 : Vérifier le code de confirmation
-  const handleConfirmCode = () => {
-    if (code !== generatedCode) return Alert.alert("Erreur", "Code incorrect !");
-    Alert.alert("Succès", "Code confirmé ! Vous pouvez maintenant créer votre mot de passe.");
-    setStep(3);
+  // Admin: invite user (create user and send code)
+  const handleInvite = async () => {
+    if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email à inviter');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail)) return Alert.alert('Erreur', 'Email invalide');
+    if (inviteEmailError) return Alert.alert('Erreur', inviteEmailError);
+    try {
+      setLoading(true);
+      const resp = await fetch('http://localhost:5000/invite-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, nom: inviteName, prenom: invitePrenom, role: inviteRole }),
+      });
+      const j = await resp.json();
+      if (j.success) {
+        // show returned id when available
+        if (j.userId) {
+          setLastInvitedId(j.userId);
+          setInviteMessage(j.code ? `Invité créé (dev). Code: ${j.code} — id: ${j.userId}` : `Invité créé. id: ${j.userId}`);
+        } else {
+          setInviteMessage(j.code ? `Invité créé (dev). Code: ${j.code}` : 'Invité créé et email envoyé');
+        }
+        // reload users list
+        try { const r = await fetch('http://localhost:5000/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
+        // clear form on success
+        setInviteEmail(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin');
+      } else {
+        Alert.alert('Erreur', j.message || 'Impossible d\'inviter l\'utilisateur');
+      }
+      setLoading(false);
+    } catch (e) {
+      setLoading(false);
+      console.error(e);
+      Alert.alert('Erreur', 'Problème de connexion au serveur');
+    }
+  };
+
+  // Admin: activate a user immediately
+  const handleActivate = async (userEmail) => {
+    try {
+      setLoading(true);
+      const resp = await fetch('http://localhost:5000/admin/activate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: userEmail }),
+      });
+      const j = await resp.json();
+      if (j.success) {
+        Alert.alert('Succès', 'Utilisateur activé');
+        if (j.users) setUsers(j.users);
+      } else {
+        Alert.alert('Erreur', j.message || 'Impossible d\'activer');
+      }
+      setLoading(false);
+    } catch (err) {
+      setLoading(false);
+      console.error(err);
+      Alert.alert('Erreur', 'Problème de connexion au serveur');
+    }
+  };
+
+  // Étape 2 : Vérifier le code de confirmation via backend
+  const handleConfirmCode = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert("Succès", "Code confirmé ! Vous pouvez maintenant créer votre mot de passe.");
+        setStep(3);
+      } else {
+        Alert.alert("Erreur", data.message || "Code incorrect !");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Erreur", "Impossible de vérifier le code");
+    }
   };
 
   // Étape 3 : Ajouter mot de passe
-  const handleAddPassword = () => {
+  const handleAddPassword = async () => {
     if (password.length < 8) return Alert.alert("Erreur", "Le mot de passe doit contenir au moins 8 caractères !");
-    const user = usersList.find((u) => u.email === email);
-    user.password = password;
-    user.isConfirmed = true;
-    Alert.alert("Succès", "Votre compte est prêt !");
-
-    // Reset
-    setEmail(""); setPassword(""); setCode(""); setGeneratedCode(""); setStep(1);
-    console.log("Utilisateurs mis à jour :", usersList);
+    try {
+      const response = await fetch('http://localhost:5000/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, nom, prenom, role }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert('Succès', 'Utilisateur ajouté avec succès ✅');
+        // Reset
+        setNom(''); setPrenom(''); setRole('medecin');
+        setEmail(''); setPassword(''); setCode(''); setStep(1);
+        setRefresh(!refresh);
+        // reload users
+        try {
+          const resp = await fetch('http://localhost:5000/users');
+          const j = await resp.json();
+          if (j.success) setUsers(j.users);
+        } catch (e) { /* ignore */ }
+      } else {
+        Alert.alert('Erreur', data.message || 'Impossible de créer l\'utilisateur');
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erreur', 'Problème de connexion au serveur');
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Gérer les utilisateurs</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.mainTitle}>Gestion des utilisateurs</Text>
 
-      {step === 1 && (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={styles.button} onPress={handleNextStep}>
-            <Text style={styles.buttonText}>Confirmer Email</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      {/* Invite card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Inviter un utilisateur</Text>
+        <TextInput style={styles.input} placeholder="Nom" value={inviteName} onChangeText={setInviteName} />
+        <TextInput style={styles.input} placeholder="Prénom" value={invitePrenom} onChangeText={setInvitePrenom} />
+        <TextInput style={styles.input} placeholder="Email à inviter" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+        {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
+        {inviteEmailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
+        <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
+          <Picker.Item label="Médecin" value="medecin" />
+          <Picker.Item label="Technicien" value="technicien" />
+        </Picker>
+        <TouchableOpacity style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking || inviteEmailError) ? { opacity: 0.6 } : null]} onPress={handleInvite} disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || !!inviteEmailError}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Inviter</Text>}
+        </TouchableOpacity>
+        {inviteMessage ? <Text style={styles.successText}>{inviteMessage}</Text> : null}
+        {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID invité: #{lastInvitedId}</Text> : null}
+      </View>
 
-      {step === 2 && (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="Code de confirmation"
-            value={code}
-            onChangeText={setCode}
-            keyboardType="numeric"
-          />
-          <TouchableOpacity style={styles.button} onPress={handleConfirmCode}>
-            <Text style={styles.buttonText}>Valider Code</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      {/* Pending invites */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Invitations en attente</Text>
+        <FlatList
+          data={users.filter(u => !u.isConfirmed)}
+          keyExtractor={(item) => item.id ? String(item.id) : item.email}
+          renderItem={({ item }) => (
+            <View style={styles.userRow}>
+              <View>
+                <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
+                <Text style={styles.emailText}>{item.email}</Text>
+              </View>
+              <TouchableOpacity style={styles.smallButton} onPress={() => handleActivate(item.email)}>
+                <Text style={styles.smallButtonText}>Activer</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={styles.empty}>Aucune invitation en attente</Text>}
+        />
+      </View>
 
-      {step === 3 && (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="Mot de passe (min 8 caractères)"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-          <TouchableOpacity style={styles.button} onPress={handleAddPassword}>
-            <Text style={styles.buttonText}>Créer Mot de Passe</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </View>
+      {/* Active users */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Utilisateurs actifs</Text>
+        <FlatList
+          data={users.filter(u => u.isConfirmed)}
+          keyExtractor={(item) => item.id ? String(item.id) : item.email}
+          renderItem={({ item }) => (
+            <View style={styles.userRow}>
+              <View>
+                <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
+                <Text style={styles.emailText}>{item.email}</Text>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={styles.empty}>Aucun utilisateur actif</Text>}
+        />
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f5f5f5" },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 30 },
-  input: { width: "80%", padding: 15, borderWidth: 1, borderColor: "#ccc", borderRadius: 10, marginBottom: 20, backgroundColor: "#fff" },
-  button: { backgroundColor: "#007bff", paddingVertical: 15, paddingHorizontal: 20, borderRadius: 10, alignItems: "center" },
-  buttonText: { color: "#fff", fontSize: 18 },
+  container: { flex: 1, padding: 20, backgroundColor: "#f5f5f5" },
+  mainTitle: { fontSize: 26, fontWeight: "bold", marginBottom: 20, color: "#333", textAlign: "center" },
+  input: { width: "100%", padding: 15, borderWidth: 1, borderColor: "#ccc", borderRadius: 10, marginBottom: 15, backgroundColor: "#fff" },
+  picker: { width: "100%", marginBottom: 15, backgroundColor: "#fff", borderRadius: 10 },
+  button: { backgroundColor: "#007bff", paddingVertical: 15, borderRadius: 10, alignItems: "center", marginBottom: 20 },
+  buttonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  listTitle: { fontSize: 20, fontWeight: "bold", marginVertical: 10, color: "#444" },
+  userCard: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 5,
+    // Use boxShadow for web (react-native-web warns on shadow* props)
+    boxShadow: '0px 2px 6px rgba(0,0,0,0.1)',
+    // Keep elevation for Android
+    elevation: 3,
+  },
+  
+  userText: { fontSize: 16, fontWeight: "600", color: "#333" },
+  emailText: { fontSize: 14, color: "#666" },
+  smallButton: { marginTop: 8, backgroundColor: '#28a745', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
+  smallButtonText: { color: '#fff', fontWeight: '600' }
 });
+
