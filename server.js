@@ -9,6 +9,17 @@ const bcrypt = require("bcryptjs");
 const dns = require('dns').promises;
 const jwt = require('jsonwebtoken');
 
+// Gestionnaires d'erreurs globaux pour debugging
+process.on('uncaughtException', (err) => {
+  console.error('❌ ERREUR NON CAPTURÉE:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ PROMESSE REJETÉE NON GÉRÉE:', reason);
+  process.exit(1);
+});
+
 const app = express();
 const http = require('http');
 const server = http.createServer(app);
