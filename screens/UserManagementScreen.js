@@ -37,7 +37,15 @@ export default function UserManagementScreen() {
   const [inviteChecking, setInviteChecking] = useState(false);
   const [inviteSendCodeBy, setInviteSendCodeBy] = useState("email"); // "email" ou "phone"
   const inviteCheckRef = useRef(null);
+  const [adminConfirmCode, setAdminConfirmCode] = useState(""); // Code saisi par l'admin
+  const [adminConfirmContact, setAdminConfirmContact] = useState(""); // Contact du participant à confirmer
+  const [showAdminConfirm, setShowAdminConfirm] = useState(false); // Afficher le formulaire de confirmation
   const [step, setStep] = useState(1); // 1 = infos + contact, 2 = code, 3 = mot de passe
+  
+  // États pour la création de mot de passe par le participant
+  const [userContactPassword, setUserContactPassword] = useState(""); // Email ou téléphone du participant
+  const [userNewPassword, setUserNewPassword] = useState(""); // Nouveau mot de passe
+  const [userConfirmPassword, setUserConfirmPassword] = useState(""); // Confirmation mot de passe
   const [contact, setContact] = useState(""); // Email ou téléphone
   const [userEmail, setUserEmail] = useState(""); // Email de l'utilisateur
   const [userPhone, setUserPhone] = useState(""); // Téléphone de l'utilisateur
@@ -181,6 +189,9 @@ export default function UserManagementScreen() {
         } else {
           setInviteMessage(j.code ? `Participant créé. Code envoyé par ${medium}: ${j.code}` : `Participant créé. Un code de confirmation a été envoyé par ${medium} à ${sendTo}`);
         }
+        // Afficher le formulaire de confirmation pour l'admin
+        setAdminConfirmContact(sendTo);
+        setShowAdminConfirm(true);
         // reload users list
         try { const r = await fetch('http://localhost:5000/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
         // clear form on success
@@ -193,6 +204,101 @@ export default function UserManagementScreen() {
       setLoading(false);
       console.error(e);
       Alert.alert('Erreur', 'Problème de connexion au serveur');
+    }
+  };
+
+  // Participant: créer son mot de passe après confirmation par l'admin
+  const handleCreateUserPassword = async () => {
+    if (!userContactPassword) {
+      return Alert.alert("Erreur", "Veuillez entrer votre email ou téléphone");
+    }
+    if (userNewPassword.length < 8) {
+      return Alert.alert("Erreur", "Le mot de passe doit contenir au moins 8 caractères");
+    }
+    if (userNewPassword !== userConfirmPassword) {
+      return Alert.alert("Erreur", "Les mots de passe ne correspondent pas");
+    }
+
+    try {
+      // Vérifier si l'utilisateur existe et est confirmé
+      const existingUser = users.find((u) => 
+        (u.email === userContactPassword || u.phone === userContactPassword) && u.isConfirmed
+      );
+      
+      if (!existingUser) {
+        return Alert.alert("Erreur", "Contact introuvable ou non confirmé par l'admin");
+      }
+      
+      if (existingUser.password) {
+        return Alert.alert("Info", "Ce compte a déjà un mot de passe. Connectez-vous.");
+      }
+
+      const response = await fetch('http://localhost:5000/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: existingUser.email, 
+          password: userNewPassword, 
+          nom: existingUser.nom, 
+          prenom: existingUser.prenom, 
+          role: existingUser.role 
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert('Succès', 'Mot de passe créé ! Vous pouvez maintenant vous connecter.');
+        setUserContactPassword("");
+        setUserNewPassword("");
+        setUserConfirmPassword("");
+        // Recharger la liste des utilisateurs
+        try {
+          const resp = await fetch('http://localhost:5000/users');
+          const j = await resp.json();
+          if (j.success) setUsers(j.users);
+        } catch (e) { /* ignore */ }
+      } else {
+        Alert.alert('Erreur', data.message || 'Impossible de créer le mot de passe');
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erreur', 'Problème de connexion au serveur');
+    }
+  };
+
+  // Admin: confirmer le code pour activer le participant
+  const handleAdminConfirmCode = async () => {
+    if (!adminConfirmCode || !adminConfirmContact) {
+      return Alert.alert("Erreur", "Veuillez entrer le code de confirmation");
+    }
+    
+    try {
+      const response = await fetch("http://localhost:5000/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact: adminConfirmContact, code: adminConfirmCode }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert("Succès", "Participant confirmé avec succès ! Il peut maintenant créer son mot de passe.");
+        setAdminConfirmCode("");
+        setAdminConfirmContact("");
+        setShowAdminConfirm(false);
+        setInviteMessage("");
+        setLastInvitedId(null);
+        // Recharger la liste des utilisateurs
+        try { 
+          const r = await fetch('http://localhost:5000/users'); 
+          const u = await r.json(); 
+          if (u.success) setUsers(u.users); 
+        } catch(e){ }
+      } else {
+        Alert.alert("Erreur", data.message || "Code incorrect !");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Erreur", "Impossible de vérifier le code");
     }
   };
 
@@ -372,6 +478,53 @@ export default function UserManagementScreen() {
         )}
       </View>
 
+      {/* Section participant: créer son mot de passe après confirmation admin */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🔐 Créer votre mot de passe</Text>
+        <Text style={styles.infoText}>Si l'admin a confirmé votre compte, vous pouvez créer votre mot de passe</Text>
+        
+        <TextInput 
+          style={styles.input} 
+          placeholder="Votre email ou téléphone" 
+          value={userContactPassword} 
+          onChangeText={setUserContactPassword} 
+          autoCapitalize="none"
+        />
+        
+        <TextInput 
+          style={styles.input} 
+          placeholder="Nouveau mot de passe (min 8 caractères)" 
+          value={userNewPassword} 
+          onChangeText={setUserNewPassword} 
+          secureTextEntry
+        />
+        
+        <TextInput 
+          style={styles.input} 
+          placeholder="Confirmer le mot de passe" 
+          value={userConfirmPassword} 
+          onChangeText={setUserConfirmPassword} 
+          secureTextEntry
+        />
+        
+        {userNewPassword && userConfirmPassword && userNewPassword !== userConfirmPassword ? (
+          <Text style={{ color: 'red', marginBottom: 8 }}>❌ Les mots de passe ne correspondent pas</Text>
+        ) : null}
+        
+        <TouchableOpacity 
+          style={[
+            styles.button, 
+            (!userContactPassword || userNewPassword.length < 8 || userNewPassword !== userConfirmPassword) 
+              ? { opacity: 0.6 } 
+              : null
+          ]} 
+          onPress={handleCreateUserPassword} 
+          disabled={!userContactPassword || userNewPassword.length < 8 || userNewPassword !== userConfirmPassword}
+        >
+          <Text style={styles.buttonText}>✅ Créer mon mot de passe</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Invite card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>👥 Créer un nouveau participant</Text>
@@ -404,6 +557,39 @@ export default function UserManagementScreen() {
         </TouchableOpacity>
         {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}
         {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID invité: #{lastInvitedId}</Text> : null}
+        
+        {showAdminConfirm && (
+          <View style={styles.confirmSection}>
+            <Text style={styles.confirmTitle}>🔐 Confirmer le participant</Text>
+            <Text style={styles.infoText}>Le code a été envoyé à : {adminConfirmContact}</Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="Entrez le code de confirmation" 
+              value={adminConfirmCode} 
+              onChangeText={setAdminConfirmCode} 
+              keyboardType="number-pad" 
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity 
+                style={[styles.button, { flex: 1, backgroundColor: '#6c757d' }]} 
+                onPress={() => {
+                  setShowAdminConfirm(false);
+                  setAdminConfirmCode("");
+                  setAdminConfirmContact("");
+                }}
+              >
+                <Text style={styles.buttonText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.button, { flex: 1 }, !adminConfirmCode ? { opacity: 0.6 } : null]} 
+                onPress={handleAdminConfirmCode} 
+                disabled={!adminConfirmCode}
+              >
+                <Text style={styles.buttonText}>✅ Confirmer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Pending invites */}
@@ -501,6 +687,21 @@ const styles = StyleSheet.create({
   roleText: { fontSize: 13, color: "#007bff", marginTop: 4, fontWeight: '500' },
   labelText: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 5 },
   smallButton: { marginTop: 8, backgroundColor: '#28a745', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
-  smallButtonText: { color: '#fff', fontWeight: '600' }
+  smallButtonText: { color: '#fff', fontWeight: '600' },
+  confirmSection: { 
+    marginTop: 20, 
+    padding: 15, 
+    backgroundColor: '#fff3cd', 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: '#ffc107' 
+  },
+  confirmTitle: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    color: '#856404', 
+    marginBottom: 10, 
+    textAlign: 'center' 
+  }
 });
 
