@@ -27,6 +27,7 @@ export default function UserManagementScreen() {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
   const [inviteRole, setInviteRole] = useState("medecin");
   const [inviteName, setInviteName] = useState("");
   const [invitePrenom, setInvitePrenom] = useState("");
@@ -138,7 +139,7 @@ export default function UserManagementScreen() {
       const resp = await fetch('http://localhost:5000/invite-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, nom: inviteName, prenom: invitePrenom, role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail, phone: invitePhone, nom: inviteName, prenom: invitePrenom, role: inviteRole }),
       });
       const j = await resp.json();
       if (j.success) {
@@ -152,7 +153,7 @@ export default function UserManagementScreen() {
         // reload users list
         try { const r = await fetch('http://localhost:5000/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
         // clear form on success
-        setInviteEmail(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin');
+        setInviteEmail(''); setInvitePhone(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin');
       } else {
         Alert.alert('Erreur', j.message || 'Impossible d\'inviter l\'utilisateur');
       }
@@ -249,6 +250,7 @@ export default function UserManagementScreen() {
         <TextInput style={styles.input} placeholder="Nom" value={inviteName} onChangeText={setInviteName} />
         <TextInput style={styles.input} placeholder="Prénom" value={invitePrenom} onChangeText={setInvitePrenom} />
         <TextInput style={styles.input} placeholder="Email à inviter" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+        <TextInput style={styles.input} placeholder="Téléphone (optionnel)" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
         {inviteEmailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
         <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
@@ -273,6 +275,7 @@ export default function UserManagementScreen() {
               <View>
                 <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
                 <Text style={styles.emailText}>{item.email}</Text>
+                {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
               </View>
               <TouchableOpacity style={styles.smallButton} onPress={() => handleActivate(item.email)}>
                 <Text style={styles.smallButtonText}>Activer</Text>
@@ -294,6 +297,7 @@ export default function UserManagementScreen() {
               <View>
                 <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
                 <Text style={styles.emailText}>{item.email}</Text>
+                {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
               </View>
             </View>
           )}
@@ -312,6 +316,27 @@ const styles = StyleSheet.create({
   button: { backgroundColor: "#007bff", paddingVertical: 15, borderRadius: 10, alignItems: "center", marginBottom: 20 },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   listTitle: { fontSize: 20, fontWeight: "bold", marginVertical: 10, color: "#444" },
+  card: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 10,
+    marginBottom: 20,
+    boxShadow: '0px 2px 6px rgba(0,0,0,0.1)',
+    elevation: 3,
+  },
+  cardTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 15, color: "#333" },
+  userRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  successText: { color: '#28a745', marginTop: 10, fontWeight: '600' },
+  smallInfo: { fontSize: 12, color: '#888', marginTop: 5 },
+  empty: { textAlign: 'center', color: '#999', fontStyle: 'italic', marginTop: 10 },
   userCard: {
     backgroundColor: "#fff",
     padding: 15,
@@ -325,6 +350,7 @@ const styles = StyleSheet.create({
   
   userText: { fontSize: 16, fontWeight: "600", color: "#333" },
   emailText: { fontSize: 14, color: "#666" },
+  phoneText: { fontSize: 14, color: "#888", marginTop: 2 },
   smallButton: { marginTop: 8, backgroundColor: '#28a745', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
   smallButtonText: { color: '#fff', fontWeight: '600' }
 });
