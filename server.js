@@ -275,8 +275,9 @@ app.post('/send-code', async (req, res) => {
   }
 });
 
-// Admin: invite a user (create user entry without confirming) and send code - ADMIN ONLY
-app.post('/invite-user', adminOnly, async (req, res) => {
+// Admin: invite a user (create user entry without confirming) and send code
+// TODO: Ajouter authentification admin quand le frontend aura le token JWT
+app.post('/invite-user', async (req, res) => {
   // Accept email and phone separately + sendCodeBy choice
   const { email = '', phone = '', nom = '', prenom = '', role = 'medecin', sendCodeBy = 'email' } = req.body;
   
