@@ -35,9 +35,13 @@ export default function UserManagementScreen() {
   const [lastInvitedId, setLastInvitedId] = useState(null);
   const [inviteEmailError, setInviteEmailError] = useState('');
   const [inviteChecking, setInviteChecking] = useState(false);
+  const [inviteSendCodeBy, setInviteSendCodeBy] = useState("email"); // "email" ou "phone"
   const inviteCheckRef = useRef(null);
   const [step, setStep] = useState(1); // 1 = infos + contact, 2 = code, 3 = mot de passe
   const [contact, setContact] = useState(""); // Email ou téléphone
+  const [userEmail, setUserEmail] = useState(""); // Email de l'utilisateur
+  const [userPhone, setUserPhone] = useState(""); // Téléphone de l'utilisateur
+  const [sendCodeBy, setSendCodeBy] = useState("email"); // "email" ou "phone"
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [refresh, setRefresh] = useState(false); // pour forcer FlatList à refresh
@@ -75,16 +79,27 @@ export default function UserManagementScreen() {
   }, [inviteEmail]);
 
   useEffect(() => {
-    if (!contact) { setEmailError(""); return; }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const isEmail = emailRegex.test(contact);
-    const isPhone = /^[0-9+\s()-]+$/.test(contact) && contact.replace(/[^0-9]/g, '').length >= 8;
+    setEmailError("");
+    if (sendCodeBy === "email" && !userEmail) return;
+    if (sendCodeBy === "phone" && !userPhone) return;
     
-    if (!isEmail && !isPhone) {
-      setEmailError("Email ou téléphone invalide");
+    const contactToCheck = sendCodeBy === "email" ? userEmail : userPhone;
+    if (!contactToCheck) return;
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isEmail = emailRegex.test(contactToCheck);
+    const isPhone = /^[0-9+\s()-]+$/.test(contactToCheck) && contactToCheck.replace(/[^0-9]/g, '').length >= 8;
+    
+    if (sendCodeBy === "email" && !isEmail) {
+      setEmailError("Email invalide");
       return;
     }
-    const existing = users.find(u => u.email === contact || u.phone === contact);
+    if (sendCodeBy === "phone" && !isPhone) {
+      setEmailError("Téléphone invalide (min 8 chiffres)");
+      return;
+    }
+    
+    const existing = users.find(u => u.email === contactToCheck || u.phone === contactToCheck);
     if (!existing) {
       setEmailError("Contact inconnu. Contactez l'admin.");
       return;
@@ -93,21 +108,23 @@ export default function UserManagementScreen() {
       setEmailError("Ce compte est déjà actif. Connectez-vous.");
       return;
     }
-    setEmailError("");
-  }, [contact, users]);
+  }, [userEmail, userPhone, sendCodeBy, users]);
 
   // Étape 1 : Vérifier le contact (email ou téléphone) et envoyer le code via backend
   const handleNextStep = async () => {
     if (!nom || !prenom) return Alert.alert("Erreur", "Veuillez entrer votre nom et prénom !");
-    if (!contact) return Alert.alert("Erreur", "Veuillez entrer un email ou téléphone !");
+    
+    const contactToSend = sendCodeBy === "email" ? userEmail : userPhone;
+    if (!contactToSend) return Alert.alert("Erreur", `Veuillez entrer un ${sendCodeBy === "email" ? "email" : "téléphone"} !`);
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const isEmail = emailRegex.test(contact);
-    const isPhone = /^[0-9+\s()-]+$/.test(contact) && contact.replace(/[^0-9]/g, '').length >= 8;
+    const isEmail = emailRegex.test(contactToSend);
+    const isPhone = /^[0-9+\s()-]+$/.test(contactToSend) && contactToSend.replace(/[^0-9]/g, '').length >= 8;
     
-    if (!isEmail && !isPhone) return Alert.alert("Erreur", "Email ou téléphone invalide !");
+    if (sendCodeBy === "email" && !isEmail) return Alert.alert("Erreur", "Email invalide !");
+    if (sendCodeBy === "phone" && !isPhone) return Alert.alert("Erreur", "Téléphone invalide !");
 
-    const existingUser = users.find((u) => u.email === contact || u.phone === contact);
+    const existingUser = users.find((u) => u.email === contactToSend || u.phone === contactToSend);
     if (!existingUser) return Alert.alert("Erreur", "Contact inconnu ! Contactez l'admin.");
 
     if (existingUser.isConfirmed) {
@@ -120,14 +137,16 @@ export default function UserManagementScreen() {
       const response = await fetch("http://localhost:5000/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact }),
+        body: JSON.stringify({ contact: contactToSend }),
       });
 
       const data = await response.json();
       if (data.success) {
         // If backend returned code (dev mode), show it in console for testing
         if (data.code) console.log('Code (dev):', data.code);
-        Alert.alert("Contact reconnu", `Un code de confirmation a été envoyé à ${contact}`);
+        const medium = sendCodeBy === "email" ? "email" : "SMS";
+        Alert.alert("Contact reconnu", `Un code de confirmation a été envoyé par ${medium} à ${contactToSend}`);
+        setContact(contactToSend); // Sauvegarder pour les étapes suivantes
         setStep(2); // passer à la saisie du code
       } else {
         Alert.alert("Erreur", data.message || "Impossible d'envoyer le code");
@@ -149,21 +168,23 @@ export default function UserManagementScreen() {
       const resp = await fetch('http://localhost:5000/invite-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, phone: invitePhone, nom: inviteName, prenom: invitePrenom, role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail, phone: invitePhone, nom: inviteName, prenom: invitePrenom, role: inviteRole, sendCodeBy: inviteSendCodeBy }),
       });
       const j = await resp.json();
       if (j.success) {
         // show returned id when available
+        const sendTo = inviteSendCodeBy === "email" ? inviteEmail : invitePhone;
+        const medium = inviteSendCodeBy === "email" ? "email" : "SMS";
         if (j.userId) {
           setLastInvitedId(j.userId);
-          setInviteMessage(j.code ? `Participant créé (id: ${j.userId}). Code envoyé: ${j.code}` : `Participant créé (id: ${j.userId}). Un code de confirmation a été envoyé à ${inviteEmail}`);
+          setInviteMessage(j.code ? `Participant créé (id: ${j.userId}). Code envoyé par ${medium}: ${j.code}` : `Participant créé (id: ${j.userId}). Un code de confirmation a été envoyé par ${medium} à ${sendTo}`);
         } else {
-          setInviteMessage(j.code ? `Participant créé. Code envoyé: ${j.code}` : `Participant créé. Un code de confirmation a été envoyé à ${inviteEmail}`);
+          setInviteMessage(j.code ? `Participant créé. Code envoyé par ${medium}: ${j.code}` : `Participant créé. Un code de confirmation a été envoyé par ${medium} à ${sendTo}`);
         }
         // reload users list
         try { const r = await fetch('http://localhost:5000/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
         // clear form on success
-        setInviteEmail(''); setInvitePhone(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin');
+        setInviteEmail(''); setInvitePhone(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin'); setInviteSendCodeBy('email');
       } else {
         Alert.alert('Erreur', j.message || 'Impossible d\'inviter l\'utilisateur');
       }
@@ -237,7 +258,7 @@ export default function UserManagementScreen() {
         Alert.alert('Succès', 'Utilisateur ajouté avec succès ✅');
         // Reset
         setNom(''); setPrenom(''); setRole('medecin');
-        setContact(''); setEmail(''); setPassword(''); setCode(''); setStep(1);
+        setContact(''); setUserEmail(''); setUserPhone(''); setEmail(''); setPassword(''); setCode(''); setStep(1); setSendCodeBy('email');
         setRefresh(!refresh);
         // reload users
         try {
@@ -266,24 +287,46 @@ export default function UserManagementScreen() {
           <>
             <TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom} />
             <TextInput style={styles.input} placeholder="Prénom" value={prenom} onChangeText={setPrenom} />
-            <TextInput 
-              style={styles.input} 
-              placeholder="Email ou Téléphone" 
-              value={contact} 
-              onChangeText={setContact} 
-              autoCapitalize="none" 
-            />
+            
+            <Text style={styles.labelText}>📧 Recevoir le code par :</Text>
+            <Picker selectedValue={sendCodeBy} style={styles.picker} onValueChange={setSendCodeBy}>
+              <Picker.Item label="✉️ Email" value="email" />
+              <Picker.Item label="📱 SMS / Téléphone" value="phone" />
+            </Picker>
+            
+            {sendCodeBy === "email" ? (
+              <TextInput 
+                style={styles.input} 
+                placeholder="Votre email" 
+                value={userEmail} 
+                onChangeText={setUserEmail} 
+                keyboardType="email-address"
+                autoCapitalize="none" 
+              />
+            ) : (
+              <TextInput 
+                style={styles.input} 
+                placeholder="Votre téléphone (ex: +33612345678)" 
+                value={userPhone} 
+                onChangeText={setUserPhone} 
+                keyboardType="phone-pad"
+              />
+            )}
+            
             {emailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{emailError}</Text> : null}
+            
+            <Text style={styles.labelText}>Rôle :</Text>
             <Picker selectedValue={role} style={styles.picker} onValueChange={setRole}>
               <Picker.Item label="Médecin" value="medecin" />
               <Picker.Item label="Technicien" value="technicien" />
             </Picker>
+            
             <TouchableOpacity 
-              style={[styles.button, (!nom || !prenom || !contact || emailError) ? { opacity: 0.6 } : null]} 
+              style={[styles.button, (!nom || !prenom || (sendCodeBy === "email" ? !userEmail : !userPhone) || emailError) ? { opacity: 0.6 } : null]} 
               onPress={handleNextStep} 
-              disabled={!nom || !prenom || !contact || !!emailError}
+              disabled={!nom || !prenom || (sendCodeBy === "email" ? !userEmail : !userPhone) || !!emailError}
             >
-              <Text style={styles.buttonText}>Envoyer le code</Text>
+              <Text style={styles.buttonText}>📤 Envoyer le code</Text>
             </TouchableOpacity>
           </>
         )}
@@ -333,21 +376,29 @@ export default function UserManagementScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>👥 Créer un nouveau participant</Text>
         <Text style={styles.infoText}>L'utilisateur recevra un code de confirmation pour activer son compte</Text>
-        <TextInput style={styles.input} placeholder="Nom *" value={inviteName} onChangeText={setInviteName} />/>
+        <TextInput style={styles.input} placeholder="Nom *" value={inviteName} onChangeText={setInviteName} />
         <TextInput style={styles.input} placeholder="Prénom *" value={invitePrenom} onChangeText={setInvitePrenom} />
         <TextInput style={styles.input} placeholder="Email *" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
         <TextInput style={styles.input} placeholder="Téléphone (optionnel)" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
+        
+        <Text style={styles.labelText}>📧 Envoyer le code de confirmation par :</Text>
+        <Picker selectedValue={inviteSendCodeBy} style={styles.picker} onValueChange={setInviteSendCodeBy}>
+          <Picker.Item label="✉️ Email" value="email" />
+          <Picker.Item label="📱 SMS / Téléphone" value="phone" />
+        </Picker>
+        
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
         {inviteEmailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
+        {inviteSendCodeBy === "phone" && !invitePhone ? <Text style={{ color: 'orange', marginBottom: 8 }}>⚠️ Veuillez entrer un numéro de téléphone pour l'envoi par SMS</Text> : null}
         <Text style={styles.labelText}>Situation (Rôle) *</Text>
         <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
           <Picker.Item label="Médecin" value="medecin" />
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
         <TouchableOpacity 
-          style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking) ? { opacity: 0.6 } : null]} 
+          style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking || inviteEmailError || (inviteSendCodeBy === "phone" && !invitePhone)) ? { opacity: 0.6 } : null]} 
           onPress={handleInvite} 
-          disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || loading}
+          disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || loading || !!inviteEmailError || (inviteSendCodeBy === "phone" && !invitePhone)}
         >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✉️ Créer et envoyer le code</Text>}
         </TouchableOpacity>

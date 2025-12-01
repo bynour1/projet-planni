@@ -277,14 +277,14 @@ app.post('/send-code', async (req, res) => {
 
 // Admin: invite a user (create user entry without confirming) and send code - ADMIN ONLY
 app.post('/invite-user', adminOnly, async (req, res) => {
-  // Accept email and phone separately
-  const { email = '', phone = '', nom = '', prenom = '', role = 'medecin' } = req.body;
-  const contact = email || phone;
-  if (!contact) return res.status(400).json({ success: false, message: 'Email ou téléphone requis' });
+  // Accept email and phone separately + sendCodeBy choice
+  const { email = '', phone = '', nom = '', prenom = '', role = 'medecin', sendCodeBy = 'email' } = req.body;
+  
   if (!email || !email.includes('@')) return res.status(400).json({ success: false, message: 'Email invalide' });
   
-  // Optional phone validation if provided
-  if (phone) {
+  // Validate phone if provided or if sendCodeBy is phone
+  if (sendCodeBy === 'phone' || phone) {
+    if (!phone) return res.status(400).json({ success: false, message: 'Téléphone requis pour l\'envoi par SMS' });
     const phoneRaw = String(phone).replace(/\s+/g, '');
     if (!/^\+?[0-9]{8,15}$/.test(phoneRaw)) return res.status(400).json({ success: false, message: 'Numéro de téléphone invalide' });
   }
@@ -292,12 +292,16 @@ app.post('/invite-user', adminOnly, async (req, res) => {
   const added = await db.addUser({ email, phone: phone || null, nom, prenom, role });
   if (!added) return res.status(400).json({ success: false, message: 'Utilisateur existe déjà' });
 
+  // Choose contact based on sendCodeBy
+  const contactToSend = sendCodeBy === 'phone' ? phone : email;
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  await db.saveCode(contact, code);
+  await db.saveCode(contactToSend, code);
+  
   try {
     try {
-      await sendConfirmationContact(contact, code);
-      return res.json({ success: true, message: 'Invité créé et code envoyé', userId: added });
+      await sendConfirmationContact(contactToSend, code);
+      const medium = sendCodeBy === 'phone' ? 'SMS' : 'email';
+      return res.json({ success: true, message: `Invité créé et code envoyé par ${medium}`, userId: added });
     } catch (sendErr) {
       console.warn('Send invite failed or not configured (dev-mode):', sendErr && sendErr.message);
       return res.json({ success: true, message: 'Invité (dev) créé, code généré', code, userId: added });
