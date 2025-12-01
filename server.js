@@ -426,14 +426,16 @@ app.post('/events/:id/grant-edit', async (req, res) => {
 
 // Route pour vérifier le code
 app.post('/verify-code', async (req, res) => {
-  const { email, code } = req.body;
-  if (!email || !code) return res.status(400).json({ success: false, message: 'Données manquantes' });
+  // Accept either `contact` (email or phone) or `email` for compatibility
+  const contact = req.body.contact || req.body.email || '';
+  const { code } = req.body;
+  if (!contact || !code) return res.status(400).json({ success: false, message: 'Données manquantes' });
 
-  const saved = await db.getCode(email);
+  const saved = await db.getCode(contact);
   if (saved && String(saved) === String(code)) {
-    await db.deleteCode(email);
-    await db.confirmUser(email);
-    return res.json({ success: true, message: 'Email confirmé avec succès !' });
+    await db.deleteCode(contact);
+    await db.confirmUser(contact);
+    return res.json({ success: true, message: 'Contact confirmé avec succès !' });
   }
 
   return res.status(400).json({ success: false, message: 'Code invalide' });

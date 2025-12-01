@@ -36,7 +36,8 @@ export default function UserManagementScreen() {
   const [inviteEmailError, setInviteEmailError] = useState('');
   const [inviteChecking, setInviteChecking] = useState(false);
   const inviteCheckRef = useRef(null);
-  const [step, setStep] = useState(1); // 1 = infos + email, 2 = code, 3 = mot de passe
+  const [step, setStep] = useState(1); // 1 = infos + contact, 2 = code, 3 = mot de passe
+  const [contact, setContact] = useState(""); // Email ou téléphone
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [refresh, setRefresh] = useState(false); // pour forcer FlatList à refresh
@@ -72,15 +73,18 @@ export default function UserManagementScreen() {
   }, [inviteEmail]);
 
   useEffect(() => {
-    if (!email) { setEmailError(""); return; }
+    if (!contact) { setEmailError(""); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setEmailError("Email invalide");
+    const isEmail = emailRegex.test(contact);
+    const isPhone = /^[0-9+\s()-]+$/.test(contact) && contact.replace(/[^0-9]/g, '').length >= 8;
+    
+    if (!isEmail && !isPhone) {
+      setEmailError("Email ou téléphone invalide");
       return;
     }
-    const existing = users.find(u => u.email === email);
+    const existing = users.find(u => u.email === contact || u.phone === contact);
     if (!existing) {
-      setEmailError("Email inconnu. Contactez l'admin.");
+      setEmailError("Contact inconnu. Contactez l'admin.");
       return;
     }
     if (existing.isConfirmed) {
@@ -88,17 +92,21 @@ export default function UserManagementScreen() {
       return;
     }
     setEmailError("");
-  }, [email, users]);
+  }, [contact, users]);
 
-  // Étape 1 : Vérifier l'email et envoyer le code via backend
+  // Étape 1 : Vérifier le contact (email ou téléphone) et envoyer le code via backend
   const handleNextStep = async () => {
     if (!nom || !prenom) return Alert.alert("Erreur", "Veuillez entrer votre nom et prénom !");
-    if (!email) return Alert.alert("Erreur", "Veuillez entrer un email !");
+    if (!contact) return Alert.alert("Erreur", "Veuillez entrer un email ou téléphone !");
+    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return Alert.alert("Erreur", "Email invalide !");
+    const isEmail = emailRegex.test(contact);
+    const isPhone = /^[0-9+\s()-]+$/.test(contact) && contact.replace(/[^0-9]/g, '').length >= 8;
+    
+    if (!isEmail && !isPhone) return Alert.alert("Erreur", "Email ou téléphone invalide !");
 
-    const existingUser = users.find((u) => u.email === email);
-    if (!existingUser) return Alert.alert("Erreur", "Email inconnu ! Contactez l'admin.");
+    const existingUser = users.find((u) => u.email === contact || u.phone === contact);
+    if (!existingUser) return Alert.alert("Erreur", "Contact inconnu ! Contactez l'admin.");
 
     if (existingUser.isConfirmed) {
       Alert.alert("Info", "Ce compte est déjà actif. Connectez-vous avec votre mot de passe.");
@@ -106,21 +114,21 @@ export default function UserManagementScreen() {
     }
 
     try {
-      // Appel backend pour envoyer un email avec code
+      // Appel backend pour envoyer un code (email ou SMS)
       const response = await fetch("http://localhost:5000/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ contact }),
       });
 
       const data = await response.json();
       if (data.success) {
         // If backend returned code (dev mode), show it in console for testing
         if (data.code) console.log('Code (dev):', data.code);
-        Alert.alert("Email reconnu", `Un code de confirmation a été envoyé à ${email}`);
+        Alert.alert("Contact reconnu", `Un code de confirmation a été envoyé à ${contact}`);
         setStep(2); // passer à la saisie du code
       } else {
-        Alert.alert("Erreur", data.message || "Impossible d'envoyer l'email");
+        Alert.alert("Erreur", data.message || "Impossible d'envoyer le code");
       }
     } catch (error) {
       console.error(error);
@@ -193,7 +201,7 @@ export default function UserManagementScreen() {
       const response = await fetch("http://localhost:5000/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ contact, code }),
       });
 
       const data = await response.json();
@@ -213,17 +221,21 @@ export default function UserManagementScreen() {
   const handleAddPassword = async () => {
     if (password.length < 8) return Alert.alert("Erreur", "Le mot de passe doit contenir au moins 8 caractères !");
     try {
+      // Trouver l'email de l'utilisateur pour la création
+      const existingUser = users.find((u) => u.email === contact || u.phone === contact);
+      const userEmail = existingUser?.email || contact;
+      
       const response = await fetch('http://localhost:5000/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, nom, prenom, role }),
+        body: JSON.stringify({ email: userEmail, password, nom, prenom, role }),
       });
       const data = await response.json();
       if (data.success) {
         Alert.alert('Succès', 'Utilisateur ajouté avec succès ✅');
         // Reset
         setNom(''); setPrenom(''); setRole('medecin');
-        setEmail(''); setPassword(''); setCode(''); setStep(1);
+        setContact(''); setEmail(''); setPassword(''); setCode(''); setStep(1);
         setRefresh(!refresh);
         // reload users
         try {
@@ -243,6 +255,77 @@ export default function UserManagementScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.mainTitle}>Gestion des utilisateurs</Text>
+
+      {/* User Confirmation Form */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Confirmer votre compte</Text>
+        
+        {step === 1 && (
+          <>
+            <TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom} />
+            <TextInput style={styles.input} placeholder="Prénom" value={prenom} onChangeText={setPrenom} />
+            <TextInput 
+              style={styles.input} 
+              placeholder="Email ou Téléphone" 
+              value={contact} 
+              onChangeText={setContact} 
+              autoCapitalize="none" 
+            />
+            {emailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{emailError}</Text> : null}
+            <Picker selectedValue={role} style={styles.picker} onValueChange={setRole}>
+              <Picker.Item label="Médecin" value="medecin" />
+              <Picker.Item label="Technicien" value="technicien" />
+            </Picker>
+            <TouchableOpacity 
+              style={[styles.button, (!nom || !prenom || !contact || emailError) ? { opacity: 0.6 } : null]} 
+              onPress={handleNextStep} 
+              disabled={!nom || !prenom || !contact || !!emailError}
+            >
+              <Text style={styles.buttonText}>Envoyer le code</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <Text style={styles.infoText}>Un code a été envoyé à {contact}</Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="Code de confirmation" 
+              value={code} 
+              onChangeText={setCode} 
+              keyboardType="number-pad" 
+            />
+            <TouchableOpacity 
+              style={[styles.button, !code ? { opacity: 0.6 } : null]} 
+              onPress={handleConfirmCode} 
+              disabled={!code}
+            >
+              <Text style={styles.buttonText}>Vérifier le code</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <Text style={styles.infoText}>Créez votre mot de passe</Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="Mot de passe (min 8 caractères)" 
+              value={password} 
+              onChangeText={setPassword} 
+              secureTextEntry 
+            />
+            <TouchableOpacity 
+              style={[styles.button, password.length < 8 ? { opacity: 0.6 } : null]} 
+              onPress={handleAddPassword} 
+              disabled={password.length < 8}
+            >
+              <Text style={styles.buttonText}>Créer mon compte</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
 
       {/* Invite card */}
       <View style={styles.card}>
@@ -337,6 +420,7 @@ const styles = StyleSheet.create({
   successText: { color: '#28a745', marginTop: 10, fontWeight: '600' },
   smallInfo: { fontSize: 12, color: '#888', marginTop: 5 },
   empty: { textAlign: 'center', color: '#999', fontStyle: 'italic', marginTop: 10 },
+  infoText: { fontSize: 14, color: '#555', marginBottom: 15, textAlign: 'center' },
   userCard: {
     backgroundColor: "#fff",
     padding: 15,
