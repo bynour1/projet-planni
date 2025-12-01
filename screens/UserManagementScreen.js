@@ -43,7 +43,7 @@ export default function UserManagementScreen() {
   const [refresh, setRefresh] = useState(false); // pour forcer FlatList à refresh
 
   // Validate email locally: proper format and exists in backend users list
-  // Debounced check for invite email: format, existing, MX via backend
+  // Debounced check for invite email: format, existing via backend
   useEffect(() => {
     setInviteEmailError('');
     if (inviteCheckRef.current) clearTimeout(inviteCheckRef.current);
@@ -61,11 +61,13 @@ export default function UserManagementScreen() {
         if (j && j.success) {
           if (j.exists && j.isConfirmed) setInviteEmailError('Cet email est déjà actif');
           else if (j.exists && !j.isConfirmed) setInviteEmailError('Cet email a déjà été invité (en attente)');
-          else if (!j.mxOk) setInviteEmailError('Domaine de messagerie invalide (MX introuvable)');
+          // Suppression de la vérification MX qui bloquait
           else setInviteEmailError('');
         }
       } catch (err) {
-        setInviteEmailError('Impossible de vérifier le domaine actuellement');
+        console.warn('Vérification email:', err);
+        // Ne pas bloquer en cas d'erreur de vérification
+        setInviteEmailError('');
       }
       setInviteChecking(false);
     }, 700);
@@ -342,7 +344,11 @@ export default function UserManagementScreen() {
           <Picker.Item label="Médecin" value="medecin" />
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
-        <TouchableOpacity style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking || inviteEmailError) ? { opacity: 0.6 } : null]} onPress={handleInvite} disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || !!inviteEmailError}>
+        <TouchableOpacity 
+          style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking) ? { opacity: 0.6 } : null]} 
+          onPress={handleInvite} 
+          disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || loading}
+        >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✉️ Créer et envoyer le code</Text>}
         </TouchableOpacity>
         {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}

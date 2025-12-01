@@ -277,17 +277,19 @@ app.post('/send-code', async (req, res) => {
 
 // Admin: invite a user (create user entry without confirming) and send code - ADMIN ONLY
 app.post('/invite-user', adminOnly, async (req, res) => {
-  // Accept contact (email or phone) for invitation
-  const { contact, nom = '', prenom = '', role = 'medecin' } = req.body;
-  if (!contact) return res.status(400).json({ success: false, message: 'Contact manquant' });
-  const isEmail = typeof contact === 'string' && contact.includes('@');
-  if (isEmail && !contact.includes('@')) return res.status(400).json({ success: false, message: 'Email invalide' });
-  if (!isEmail) {
-    const phoneRaw = String(contact).replace(/\s+/g, '');
+  // Accept email and phone separately
+  const { email = '', phone = '', nom = '', prenom = '', role = 'medecin' } = req.body;
+  const contact = email || phone;
+  if (!contact) return res.status(400).json({ success: false, message: 'Email ou téléphone requis' });
+  if (!email || !email.includes('@')) return res.status(400).json({ success: false, message: 'Email invalide' });
+  
+  // Optional phone validation if provided
+  if (phone) {
+    const phoneRaw = String(phone).replace(/\s+/g, '');
     if (!/^\+?[0-9]{8,15}$/.test(phoneRaw)) return res.status(400).json({ success: false, message: 'Numéro de téléphone invalide' });
   }
 
-  const added = await db.addUser({ email: isEmail ? contact : null, phone: !isEmail ? contact : null, nom, prenom, role });
+  const added = await db.addUser({ email, phone: phone || null, nom, prenom, role });
   if (!added) return res.status(400).json({ success: false, message: 'Utilisateur existe déjà' });
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -308,7 +310,8 @@ app.post('/invite-user', adminOnly, async (req, res) => {
 
 // Check email validity: format, existing user and MX records
 // Check contact (email or phone) validity and existing user state
-app.post('/check-contact', async (req, res) => {
+// Check email or phone validity and existence
+async function checkContactHandler(req, res) {
   const contact = req.body.contact || req.body.email;
   if (!contact) return res.status(400).json({ success: false, message: 'Contact manquant' });
   const isEmail = typeof contact === 'string' && contact.includes('@');
@@ -332,7 +335,10 @@ app.post('/check-contact', async (req, res) => {
     if (user) { exists = true; isConfirmed = !!user.isConfirmed; }
   } catch (e) { /* ignore */ }
   res.json({ success: true, formatValid, exists, isConfirmed, mxOk });
-});
+}
+
+app.post('/check-email', checkContactHandler);
+app.post('/check-contact', checkContactHandler);
 
 // Admin: activate a user immediately (no code) — for admin use only
 app.post('/admin/activate', async (req, res) => {
