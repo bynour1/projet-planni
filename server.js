@@ -166,11 +166,11 @@ async function sendConfirmationContact(to, code) {
 }
 
 // GET users (pour charger la liste des utilisateurs)
-// Accessible par tous les utilisateurs authentifiés pour voir leurs collègues
-app.get('/users', authenticateToken, async (req, res) => {
+// TODO: Ajouter authentification quand le frontend aura le token JWT
+app.get('/users', async (req, res) => {
   const users = await db.getUsers();
   // Ne pas exposer les mots de passe
-  const safeUsers = users.map(u => ({ id: u.id, email: u.email, nom: u.nom, prenom: u.prenom, role: u.role, isConfirmed: u.isConfirmed }));
+  const safeUsers = users.map(u => ({ id: u.id, email: u.email, phone: u.phone, nom: u.nom, prenom: u.prenom, role: u.role, isConfirmed: u.isConfirmed }));
   res.json({ success: true, users: safeUsers });
 });
 

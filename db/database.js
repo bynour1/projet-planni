@@ -81,10 +81,11 @@ module.exports = {
   
   // ========== USERS ==========
   async getUsers() {
-    const rows = await query('SELECT id, email, password, nom, prenom, role, isConfirmed FROM users');
+    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed FROM users');
     return rows.map(r => ({ 
       id: r.id, 
       email: r.email, 
+      phone: r.phone || null,
       password: r.password || '', 
       nom: r.nom || '', 
       prenom: r.prenom || '', 
