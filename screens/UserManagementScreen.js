@@ -154,9 +154,9 @@ export default function UserManagementScreen() {
         // show returned id when available
         if (j.userId) {
           setLastInvitedId(j.userId);
-          setInviteMessage(j.code ? `Invité créé (dev). Code: ${j.code} — id: ${j.userId}` : `Invité créé. id: ${j.userId}`);
+          setInviteMessage(j.code ? `Participant créé (id: ${j.userId}). Code envoyé: ${j.code}` : `Participant créé (id: ${j.userId}). Un code de confirmation a été envoyé à ${inviteEmail}`);
         } else {
-          setInviteMessage(j.code ? `Invité créé (dev). Code: ${j.code}` : 'Invité créé et email envoyé');
+          setInviteMessage(j.code ? `Participant créé. Code envoyé: ${j.code}` : `Participant créé. Un code de confirmation a été envoyé à ${inviteEmail}`);
         }
         // reload users list
         try { const r = await fetch('http://localhost:5000/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
@@ -329,36 +329,40 @@ export default function UserManagementScreen() {
 
       {/* Invite card */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Inviter un utilisateur</Text>
-        <TextInput style={styles.input} placeholder="Nom" value={inviteName} onChangeText={setInviteName} />
-        <TextInput style={styles.input} placeholder="Prénom" value={invitePrenom} onChangeText={setInvitePrenom} />
-        <TextInput style={styles.input} placeholder="Email à inviter" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+        <Text style={styles.cardTitle}>👥 Créer un nouveau participant</Text>
+        <Text style={styles.infoText}>L'utilisateur recevra un code de confirmation pour activer son compte</Text>
+        <TextInput style={styles.input} placeholder="Nom *" value={inviteName} onChangeText={setInviteName} />/>
+        <TextInput style={styles.input} placeholder="Prénom *" value={invitePrenom} onChangeText={setInvitePrenom} />
+        <TextInput style={styles.input} placeholder="Email *" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
         <TextInput style={styles.input} placeholder="Téléphone (optionnel)" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
         {inviteEmailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
+        <Text style={styles.labelText}>Situation (Rôle) *</Text>
         <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
           <Picker.Item label="Médecin" value="medecin" />
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
         <TouchableOpacity style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking || inviteEmailError) ? { opacity: 0.6 } : null]} onPress={handleInvite} disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || !!inviteEmailError}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Inviter</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✉️ Créer et envoyer le code</Text>}
         </TouchableOpacity>
-        {inviteMessage ? <Text style={styles.successText}>{inviteMessage}</Text> : null}
+        {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}
         {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID invité: #{lastInvitedId}</Text> : null}
       </View>
 
       {/* Pending invites */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Invitations en attente</Text>
+        <Text style={styles.cardTitle}>⏳ Comptes en attente de confirmation</Text>
+        <Text style={styles.infoText}>Ces utilisateurs ont reçu un code mais ne l'ont pas encore validé</Text>
         <FlatList
           data={users.filter(u => !u.isConfirmed)}
           keyExtractor={(item) => item.id ? String(item.id) : item.email}
           renderItem={({ item }) => (
             <View style={styles.userRow}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
-                <Text style={styles.emailText}>{item.email}</Text>
+                <Text style={styles.emailText}>✉️ {item.email}</Text>
                 {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
+                <Text style={styles.roleText}>{item.role === 'medecin' ? '🩺 Médecin' : '🔧 Technicien'}</Text>
               </View>
               <TouchableOpacity style={styles.smallButton} onPress={() => handleActivate(item.email)}>
                 <Text style={styles.smallButtonText}>Activer</Text>
@@ -371,16 +375,18 @@ export default function UserManagementScreen() {
 
       {/* Active users */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Utilisateurs actifs</Text>
+        <Text style={styles.cardTitle}>✅ Participants actifs</Text>
+        <Text style={styles.infoText}>Utilisateurs ayant confirmé leur compte et pouvant accéder à l'application</Text>
         <FlatList
           data={users.filter(u => u.isConfirmed)}
           keyExtractor={(item) => item.id ? String(item.id) : item.email}
           renderItem={({ item }) => (
             <View style={styles.userRow}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
-                <Text style={styles.emailText}>{item.email}</Text>
+                <Text style={styles.emailText}>✉️ {item.email}</Text>
                 {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
+                <Text style={styles.roleText}>{item.role === 'medecin' ? '🩺 Médecin' : item.role === 'technicien' ? '🔧 Technicien' : '👑 Admin'}</Text>
               </View>
             </View>
           )}
@@ -435,6 +441,8 @@ const styles = StyleSheet.create({
   userText: { fontSize: 16, fontWeight: "600", color: "#333" },
   emailText: { fontSize: 14, color: "#666" },
   phoneText: { fontSize: 14, color: "#888", marginTop: 2 },
+  roleText: { fontSize: 13, color: "#007bff", marginTop: 4, fontWeight: '500' },
+  labelText: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 5 },
   smallButton: { marginTop: 8, backgroundColor: '#28a745', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
   smallButtonText: { color: '#fff', fontWeight: '600' }
 });
