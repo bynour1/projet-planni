@@ -59,7 +59,7 @@ export default function UserManagementScreen() {
         const j = await res.json();
         if (j && j.success) {
           if (j.exists && j.isConfirmed) setInviteEmailError('Cet email est déjà actif');
-          else if (j.exists && !j.isConfirmed) setInviteEmailError('Cet email a déjà été invité (en attente)');
+          else if (j.exists && !j.isConfirmed) setInviteEmailError(''); // Permettre le renvoi
           // Suppression de la vérification MX qui bloquait
           else setInviteEmailError('');
         }
@@ -77,12 +77,57 @@ export default function UserManagementScreen() {
 
 
 
+  // Admin: renvoyer le code à un utilisateur en attente
+  const handleResendCode = async () => {
+    if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email');
+    
+    try {
+      setLoading(true);
+      const contactToSend = inviteSendCodeBy === "email" ? inviteEmail : invitePhone;
+      
+      if (inviteSendCodeBy === "phone" && !invitePhone) {
+        setLoading(false);
+        return Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone pour l\'envoi par SMS');
+      }
+      
+      const response = await fetch("http://localhost:5000/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact: contactToSend }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const medium = inviteSendCodeBy === "email" ? "email" : "SMS";
+        if (data.code) console.log('Code (dev):', data.code);
+        setInviteMessage(`Code renvoyé par ${medium} à ${contactToSend}${data.code ? '. Code: ' + data.code : ''}`);
+        // Afficher le formulaire de confirmation pour l'admin
+        setAdminConfirmContact(contactToSend);
+        setShowAdminConfirm(true);
+      } else {
+        Alert.alert("Erreur", data.message || "Impossible de renvoyer le code");
+      }
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      console.error(error);
+      Alert.alert("Erreur", "Problème de connexion au serveur");
+    }
+  };
+
   // Admin: invite user (create user and send code)
   const handleInvite = async () => {
     if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email à inviter');
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(inviteEmail)) return Alert.alert('Erreur', 'Email invalide');
-    if (inviteEmailError) return Alert.alert('Erreur', inviteEmailError);
+    if (inviteEmailError === 'Cet email est déjà actif') return Alert.alert('Erreur', inviteEmailError);
+    
+    // Vérifier si l'utilisateur existe déjà en attente
+    const existingUser = users.find(u => u.email === inviteEmail && !u.isConfirmed);
+    if (existingUser) {
+      // L'utilisateur existe déjà, juste renvoyer le code
+      return handleResendCode();
+    }
     try {
       setLoading(true);
       const resp = await fetch('http://localhost:5000/invite-user', {
@@ -305,7 +350,8 @@ export default function UserManagementScreen() {
         </Picker>
         
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
-        {inviteEmailError ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
+        {inviteEmailError === 'Cet email est déjà actif' ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
+        {users.find(u => u.email === inviteEmail && !u.isConfirmed) ? <Text style={{ color: 'blue', marginBottom: 8 }}>🔄 Cet email est en attente. Le code sera renvoyé.</Text> : null}
         {inviteSendCodeBy === "phone" && !invitePhone ? <Text style={{ color: 'orange', marginBottom: 8 }}>⚠️ Veuillez entrer un numéro de téléphone pour l'envoi par SMS</Text> : null}
         <Text style={styles.labelText}>Situation (Rôle) *</Text>
         <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
@@ -313,11 +359,11 @@ export default function UserManagementScreen() {
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
         <TouchableOpacity 
-          style={[styles.button, (!inviteEmail || !inviteName || !invitePrenom || inviteChecking || inviteEmailError || (inviteSendCodeBy === "phone" && !invitePhone)) ? { opacity: 0.6 } : null]} 
+          style={[styles.button, (!inviteEmail || (!users.find(u => u.email === inviteEmail && !u.isConfirmed) && (!inviteName || !invitePrenom)) || inviteChecking || (inviteEmailError === 'Cet email est déjà actif') || (inviteSendCodeBy === "phone" && !invitePhone)) ? { opacity: 0.6 } : null]} 
           onPress={handleInvite} 
-          disabled={!inviteEmail || !inviteName || !invitePrenom || inviteChecking || loading || !!inviteEmailError || (inviteSendCodeBy === "phone" && !invitePhone)}
+          disabled={!inviteEmail || (!users.find(u => u.email === inviteEmail && !u.isConfirmed) && (!inviteName || !invitePrenom)) || inviteChecking || loading || (inviteEmailError === 'Cet email est déjà actif') || (inviteSendCodeBy === "phone" && !invitePhone)}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✉️ Créer et envoyer le code</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{users.find(u => u.email === inviteEmail && !u.isConfirmed) ? '🔄 Renvoyer le code' : '✉️ Créer et envoyer le code'}</Text>}
         </TouchableOpacity>
         {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}
         {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID invité: #{lastInvitedId}</Text> : null}
