@@ -12,7 +12,7 @@ export default function UserManagementScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const resp = await fetch('http://localhost:5000/users');
+        const resp = await fetch('http://localhost:8001/users');
         const json = await resp.json();
         if (json.success) setUsers(json.users);
       } catch (e) {
@@ -35,6 +35,7 @@ export default function UserManagementScreen() {
   const [adminConfirmCode, setAdminConfirmCode] = useState(""); // Code saisi par l'admin
   const [adminConfirmContact, setAdminConfirmContact] = useState(""); // Contact du participant à confirmer
   const [showAdminConfirm, setShowAdminConfirm] = useState(false); // Afficher le formulaire de confirmation
+  const [provisionalPassword, setProvisionalPassword] = useState(""); // Mot de passe provisoire créé par l'admin
   
   // États pour la création de mot de passe par le participant
   const [userContactPassword, setUserContactPassword] = useState(""); // Email ou téléphone du participant
@@ -55,7 +56,7 @@ export default function UserManagementScreen() {
     inviteCheckRef.current = setTimeout(async () => {
       setInviteChecking(true);
       try {
-        const res = await fetch('http://localhost:5000/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: inviteEmail }) });
+        const res = await fetch('http://localhost:8001/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: inviteEmail }) });
         const j = await res.json();
         if (j && j.success) {
           if (j.exists && j.isConfirmed) setInviteEmailError('Cet email est déjà actif');
@@ -90,7 +91,7 @@ export default function UserManagementScreen() {
         return Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone pour l\'envoi par SMS');
       }
       
-      const response = await fetch("http://localhost:5000/send-code", {
+      const response = await fetch("http://localhost:8001/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contact: contactToSend }),
@@ -130,7 +131,7 @@ export default function UserManagementScreen() {
     }
     try {
       setLoading(true);
-      const resp = await fetch('http://localhost:5000/invite-user', {
+      const resp = await fetch('http://localhost:8001/invite-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail, phone: invitePhone, nom: inviteName, prenom: invitePrenom, role: inviteRole, sendCodeBy: inviteSendCodeBy }),
@@ -190,7 +191,7 @@ export default function UserManagementScreen() {
         return Alert.alert("Info", "Ce compte a déjà un mot de passe. Connectez-vous.");
       }
 
-      const response = await fetch('http://localhost:5000/create-user', {
+      const response = await fetch('http://localhost:8001/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -210,8 +211,8 @@ export default function UserManagementScreen() {
         setUserConfirmPassword("");
         // Recharger la liste des utilisateurs
         try {
-          const resp = await fetch('http://localhost:5000/users');
-          const j = await resp.json();
+          const resp = await fetch('http://localhost:8001/users');
+          const data = await resp.json();
           if (j.success) setUsers(j.users);
         } catch (e) { /* ignore */ }
       } else {
@@ -229,24 +230,37 @@ export default function UserManagementScreen() {
       return Alert.alert("Erreur", "Veuillez entrer le code de confirmation");
     }
     
+    if (!provisionalPassword || provisionalPassword.length < 6) {
+      return Alert.alert("Erreur", "Le mot de passe provisoire doit contenir au moins 6 caractères");
+    }
+    
     try {
-      const response = await fetch("http://localhost:5000/verify-code", {
+      const response = await fetch("http://localhost:8001/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact: adminConfirmContact, code: adminConfirmCode }),
+        body: JSON.stringify({ 
+          contact: adminConfirmContact, 
+          code: adminConfirmCode,
+          provisionalPassword: provisionalPassword 
+        }),
       });
 
       const data = await response.json();
       if (data.success) {
-        Alert.alert("Succès", "Participant confirmé avec succès ! Il peut maintenant créer son mot de passe.");
+        Alert.alert(
+          "Succès", 
+          `Participant confirmé avec succès !\n\nMot de passe provisoire : ${provisionalPassword}\n\nCommuniquez ce mot de passe au participant de manière sécurisée.\nIl devra le changer lors de sa première connexion.`,
+          [{ text: "OK" }]
+        );
         setAdminConfirmCode("");
         setAdminConfirmContact("");
+        setProvisionalPassword("");
         setShowAdminConfirm(false);
         setInviteMessage("");
         setLastInvitedId(null);
         // Recharger la liste des utilisateurs
         try { 
-          const r = await fetch('http://localhost:5000/users'); 
+          const r = await fetch('http://localhost:8001/users'); 
           const u = await r.json(); 
           if (u.success) setUsers(u.users); 
         } catch(e){ }
@@ -263,7 +277,7 @@ export default function UserManagementScreen() {
   const handleActivate = async (userEmail) => {
     try {
       setLoading(true);
-      const resp = await fetch('http://localhost:5000/admin/activate', {
+      const resp = await fetch('http://localhost:8001/admin/activate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: userEmail }),
       });
       const j = await resp.json();
@@ -379,21 +393,36 @@ export default function UserManagementScreen() {
               onChangeText={setAdminConfirmCode} 
               keyboardType="number-pad" 
             />
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Text style={[styles.infoText, { marginTop: 15, fontWeight: 'bold' }]}>
+              Créer un mot de passe provisoire
+            </Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="Mot de passe provisoire (min. 6 caractères)" 
+              value={provisionalPassword} 
+              onChangeText={setProvisionalPassword} 
+              secureTextEntry={false}
+              autoCapitalize="none"
+            />
+            <Text style={[styles.infoText, { fontSize: 12, color: '#888', marginTop: 5 }]}>
+              Ce mot de passe sera communiqué au participant. Il devra le changer lors de sa première connexion.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               <TouchableOpacity 
                 style={[styles.button, { flex: 1, backgroundColor: '#6c757d' }]} 
                 onPress={() => {
                   setShowAdminConfirm(false);
                   setAdminConfirmCode("");
                   setAdminConfirmContact("");
+                  setProvisionalPassword("");
                 }}
               >
                 <Text style={styles.buttonText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[styles.button, { flex: 1 }, !adminConfirmCode ? { opacity: 0.6 } : null]} 
+                style={[styles.button, { flex: 1 }, (!adminConfirmCode || !provisionalPassword) ? { opacity: 0.6 } : null]} 
                 onPress={handleAdminConfirmCode} 
-                disabled={!adminConfirmCode}
+                disabled={!adminConfirmCode || !provisionalPassword}
               >
                 <Text style={styles.buttonText}>✅ Confirmer</Text>
               </TouchableOpacity>

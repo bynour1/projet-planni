@@ -8,14 +8,14 @@ export default function AdminPlanningScreen() {
 
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [addingDay, setAddingDay] = useState(null);
-  const [form, setForm] = useState({ medecin: "", technicien: "", adresse: "" });
+  const [form, setForm] = useState({ medecin: "", technicien: "", adresse: "", heureDebut: "", heureFin: "" });
 
   const daysOfWeek = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
 
   const handleAdd = (dayLabel) => {
-    if (!form.medecin || !form.technicien || !form.adresse) return;
-    addEvent(dayLabel, form.medecin, form.technicien, form.adresse);
-    setForm({ medecin: "", technicien: "", adresse: "" });
+    if (!form.medecin || !form.technicien || !form.adresse || !form.heureDebut || !form.heureFin) return;
+    addEvent(dayLabel, form.medecin, form.technicien, form.adresse, form.heureDebut, form.heureFin);
+    setForm({ medecin: "", technicien: "", adresse: "", heureDebut: "", heureFin: "" });
     setAddingDay(null);
   };
 
@@ -42,14 +42,29 @@ export default function AdminPlanningScreen() {
 
               {(planning[dayLabel] || []).map((ev, idx) => (
                 <View key={idx} style={styles.eventContainer}>
-                  <Text>Médecin : {ev.medecin}</Text>
-                  <Text>Technicien : {ev.technicien}</Text>
-                  <Text>Adresse : {ev.adresse}</Text>
+                  <Text style={styles.eventTime}>🕐 {ev.heureDebut || 'N/A'} - {ev.heureFin || 'N/A'}</Text>
+                  <Text>👨‍⚕️ Médecin : {ev.medecin}</Text>
+                  <Text>👷 Technicien : {ev.technicien}</Text>
+                  <Text>📍 Adresse : {ev.adresse}</Text>
                 </View>
               ))}
 
               {addingDay === dayLabel ? (
                 <View style={{ marginTop: 10 }}>
+                  <View style={styles.timeRow}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginRight: 5 }]}
+                      placeholder="Heure début (ex: 09:00)"
+                      value={form.heureDebut}
+                      onChangeText={(text) => setForm({ ...form, heureDebut: text })}
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginLeft: 5 }]}
+                      placeholder="Heure fin (ex: 17:00)"
+                      value={form.heureFin}
+                      onChangeText={(text) => setForm({ ...form, heureFin: text })}
+                    />
+                  </View>
                   <TextInput
                     style={styles.input}
                     placeholder="Médecin"
@@ -91,7 +106,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "bold" },
   dayContainer: { marginBottom: 15, padding: 10, backgroundColor: "#f5f5f5", borderRadius: 8 },
   dayTitle: { fontWeight: "bold", fontSize: 16, marginBottom: 5 },
-  eventContainer: { padding: 8, backgroundColor: "#fff", borderRadius: 5, marginBottom: 5 },
+  eventContainer: { padding: 10, backgroundColor: "#fff", borderRadius: 5, marginBottom: 5, borderLeftWidth: 3, borderLeftColor: "#007bff" },
+  eventTime: { fontWeight: "bold", fontSize: 14, color: "#007bff", marginBottom: 5 },
+  timeRow: { flexDirection: "row", justifyContent: "space-between" },
   input: { borderWidth: 1, borderColor: "#ccc", padding: 8, borderRadius: 5, marginBottom: 5 },
   addButton: { backgroundColor: "#007bff", padding: 10, borderRadius: 8, alignItems: "center", marginTop: 5 },
   addText: { color: "#fff", fontWeight: "bold" },

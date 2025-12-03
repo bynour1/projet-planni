@@ -81,7 +81,7 @@ module.exports = {
   
   // ========== USERS ==========
   async getUsers() {
-    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed FROM users');
+    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed, mustChangePassword FROM users');
     return rows.map(r => ({ 
       id: r.id, 
       email: r.email, 
@@ -90,7 +90,8 @@ module.exports = {
       nom: r.nom || '', 
       prenom: r.prenom || '', 
       role: r.role || 'medecin', 
-      isConfirmed: !!r.isConfirmed 
+      isConfirmed: !!r.isConfirmed,
+      mustChangePassword: !!r.mustChangePassword
     }));
   },
   
@@ -183,10 +184,10 @@ module.exports = {
   
   async findUserByContact(contact) {
     if (!contact) return null;
-    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed FROM users WHERE email = ? OR phone = ? LIMIT 1', [contact, contact]);
+    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed, mustChangePassword FROM users WHERE email = ? OR phone = ? LIMIT 1', [contact, contact]);
     if (!rows || !rows[0]) return null;
     const r = rows[0];
-    return { id: r.id, email: r.email, phone: r.phone || null, password: r.password || '', nom: r.nom || '', prenom: r.prenom || '', role: r.role, isConfirmed: !!r.isConfirmed };
+    return { id: r.id, email: r.email, phone: r.phone || null, password: r.password || '', nom: r.nom || '', prenom: r.prenom || '', role: r.role, isConfirmed: !!r.isConfirmed, mustChangePassword: !!r.mustChangePassword };
   },
   
   async createOrUpdateUser({ email, password, nom, prenom, role }) {
@@ -222,5 +223,15 @@ module.exports = {
   
   async deleteCode(contact) {
     await query('DELETE FROM codes WHERE contact = ?', [contact]);
+  },
+  
+  // Update user password and clear mustChangePassword flag
+  async updateUserPassword(contact, hashedPassword) {
+    await query('UPDATE users SET password = ?, mustChangePassword = 0 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
+  },
+  
+  // Set provisional password (used when admin creates password for user)
+  async setProvisionalPassword(contact, hashedPassword) {
+    await query('UPDATE users SET password = ?, mustChangePassword = 1, isConfirmed = 1 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
   }
 };

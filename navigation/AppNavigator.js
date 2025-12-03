@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AdminScreen from '../screens/AdminScreen';
+import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import MedecinScreen from '../screens/MedecinScreen';
 import TechnicienScreen from '../screens/TechnicienScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -20,6 +21,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Planning" component={PlanningScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Chat" component={chatScreen} />
       <Stack.Screen name="Admin" component={AdminScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Changer le mot de passe' }} />
     </Stack.Navigator>
   );
 }

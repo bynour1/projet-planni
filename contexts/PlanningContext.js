@@ -36,7 +36,8 @@ export const PlanningProvider = ({ children }) => {
   }, []);
 
   // Ajouter un événement
-  const addEvent = async (jour, event) => {
+  const addEvent = async (jour, medecin, technicien, adresse, heureDebut, heureFin) => {
+    const event = { medecin, technicien, adresse, heureDebut, heureFin };
     // call server to persist and broadcast
     try {
       const res = await fetch('http://localhost:5000/planning/event', {

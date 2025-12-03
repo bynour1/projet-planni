@@ -25,7 +25,7 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, { cors: { origin: '*' } });
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8001;
 const JWT_SECRET = process.env.JWT_SECRET || 'votre_secret_jwt_changez_moi_en_production';
 
 // Middlewares
@@ -133,7 +133,8 @@ app.post('/login', async (req, res) => {
         email: user.email,
         nom: user.nom,
         prenom: user.prenom,
-        role: user.role
+        role: user.role,
+        mustChangePassword: user.mustChangePassword || false
       }
     });
   } catch (error) {
@@ -143,11 +144,64 @@ app.post('/login', async (req, res) => {
 });
 
 // Utility: send confirmation either by email or by SMS (Twilio)
-async function sendConfirmationContact(to, code) {
+async function sendConfirmationContact(to, code, userInfo = {}) {
+  const from = process.env.EMAIL_FROM || (process.env.EMAIL_USER || process.env.SMTP_USER || 'no-reply@planning.com');
+  
   // if looks like email -> send email
-  const from = process.env.EMAIL_FROM || (process.env.EMAIL_USER || 'no-reply@example.com');
   if (typeof to === 'string' && to.includes('@')) {
-    return transporter.sendMail({ from, to, subject: 'Code de confirmation', text: `Votre code de confirmation est : ${code}` });
+    const htmlTemplate = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .header h1 { margin: 0; font-size: 28px; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .code-box { background: white; border: 2px dashed #667eea; padding: 20px; margin: 20px 0; text-align: center; border-radius: 8px; }
+          .code { font-size: 36px; font-weight: bold; color: #667eea; letter-spacing: 5px; }
+          .footer { text-align: center; color: #999; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🏥 Code de Confirmation</h1>
+          </div>
+          <div class="content">
+            <p>Bonjour${userInfo.nom ? ' ' + userInfo.prenom + ' ' + userInfo.nom : ''},</p>
+            <p>Vous avez été invité(e) à rejoindre la plateforme <strong>Planning Médical</strong>.</p>
+            <p>Voici votre code de confirmation à 6 chiffres :</p>
+            <div class="code-box">
+              <div class="code">${code}</div>
+            </div>
+            <p><strong>Important :</strong></p>
+            <ul>
+              <li>Ce code est valable pour une seule utilisation</li>
+              <li>Communiquez ce code à l'administrateur pour activer votre compte</li>
+              <li>Une fois votre compte activé, vous pourrez créer votre mot de passe</li>
+            </ul>
+            <p>Si vous n'avez pas demandé ce code, vous pouvez ignorer cet email.</p>
+          </div>
+          <div class="footer">
+            <p>© 2025 Planning Médical - Système de gestion de planning</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const textVersion = `Bonjour${userInfo.nom ? ' ' + userInfo.prenom + ' ' + userInfo.nom : ''},\n\nVotre code de confirmation est : ${code}\n\nCommuniquez ce code à l'administrateur pour activer votre compte.\n\n© 2025 Planning Médical`;
+    
+    return transporter.sendMail({ 
+      from, 
+      to, 
+      subject: '🔐 Code de confirmation - Planning Médical', 
+      text: textVersion,
+      html: htmlTemplate
+    });
   }
 
   // else assume phone number -> use Twilio if configured
@@ -162,7 +216,11 @@ async function sendConfirmationContact(to, code) {
   }
   // require twilio lazily so app doesn't crash if package missing and user doesn't use SMS
   const twilio = require('twilio')(sid, token);
-  return twilio.messages.create({ body: `Votre code de confirmation est : ${code}`, from: fromNumber, to });
+  return twilio.messages.create({ 
+    body: `Planning Médical - Votre code de confirmation est : ${code}\n\nCommuniquez ce code à l'administrateur.`, 
+    from: fromNumber, 
+    to 
+  });
 }
 
 // GET users (pour charger la liste des utilisateurs)
@@ -300,7 +358,7 @@ app.post('/invite-user', async (req, res) => {
   
   try {
     try {
-      await sendConfirmationContact(contactToSend, code);
+      await sendConfirmationContact(contactToSend, code, { nom, prenom, role });
       const medium = sendCodeBy === 'phone' ? 'SMS' : 'email';
       return res.json({ success: true, message: `Invité créé et code envoyé par ${medium}`, userId: added });
     } catch (sendErr) {
@@ -439,14 +497,23 @@ app.post('/events/:id/grant-edit', async (req, res) => {
 app.post('/verify-code', async (req, res) => {
   // Accept either `contact` (email or phone) or `email` for compatibility
   const contact = req.body.contact || req.body.email || '';
-  const { code } = req.body;
+  const { code, provisionalPassword } = req.body;
   if (!contact || !code) return res.status(400).json({ success: false, message: 'Données manquantes' });
 
   const saved = await db.getCode(contact);
   if (saved && String(saved) === String(code)) {
     await db.deleteCode(contact);
-    await db.confirmUser(contact);
-    return res.json({ success: true, message: 'Contact confirmé avec succès !' });
+    
+    // Si un mot de passe provisoire est fourni par l'admin, le hacher et le sauvegarder
+    if (provisionalPassword) {
+      const hashedPassword = await bcrypt.hash(provisionalPassword, 10);
+      await db.setProvisionalPassword(contact, hashedPassword);
+      return res.json({ success: true, message: 'Contact confirmé avec succès ! Mot de passe provisoire créé.' });
+    } else {
+      // Ancienne méthode: juste confirmer le contact sans créer de mot de passe
+      await db.confirmUser(contact);
+      return res.json({ success: true, message: 'Contact confirmé avec succès !' });
+    }
   }
 
   return res.status(400).json({ success: false, message: 'Code invalide' });
@@ -459,6 +526,44 @@ app.post('/create-user', adminOnly, async (req, res) => {
   const hashed = await bcrypt.hash(password, 10);
   await db.createOrUpdateUser({ email, password: hashed, nom, prenom, role });
   return res.json({ success: true, message: 'Utilisateur créé/mis à jour' });
+});
+
+// Route pour changer le mot de passe (participant)
+app.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userEmail = req.user.email; // Email du token JWT
+    
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Ancien et nouveau mot de passe requis' });
+    }
+    
+    // Vérifier que le nouveau mot de passe est différent
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ success: false, message: 'Le nouveau mot de passe doit être différent de l\'ancien' });
+    }
+    
+    // Récupérer l'utilisateur
+    const user = await db.findUserByContact(userEmail);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+    
+    // Vérifier l'ancien mot de passe
+    const validPassword = await bcrypt.compare(oldPassword, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ success: false, message: 'Ancien mot de passe incorrect' });
+    }
+    
+    // Hacher le nouveau mot de passe et mettre à jour
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.updateUserPassword(userEmail, hashedPassword);
+    
+    return res.json({ success: true, message: 'Mot de passe changé avec succès' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
 });
 
 // Wait for DB initialization before starting server

@@ -2,46 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useUser } from '../contexts/UserContext';
 
-// Utilisateurs statiques pour les tests
-const STATIC_USERS = [
-  {
-    id: 1,
-    email: 'admin@planning.com',
-    password: 'admin123',
-    role: 'admin',
-    nom: 'Admin',
-    prenom: 'Système',
-    phone: '+33 6 12 34 56 78'
-  },
-  {
-    id: 2,
-    email: 'medecin@planning.com',
-    password: 'medecin123',
-    role: 'medecin',
-    nom: 'Dupont',
-    prenom: 'Marie',
-    phone: '+33 6 23 45 67 89'
-  },
-  {
-    id: 3,
-    email: 'technicien@planning.com',
-    password: 'technicien123',
-    role: 'technicien',
-    nom: 'Martin',
-    prenom: 'Pierre',
-    phone: '+33 6 34 56 78 90'
-  }
-];
+// NOTE: quick test accounts exist on the backend (see scripts/create-test-users.js)
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -59,50 +30,69 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
-      return;
-    }
+    if (!email || !password) return Alert.alert('Erreur', 'Veuillez remplir tous les champs');
 
-    // Rechercher l'utilisateur dans la liste statique
-    const user = STATIC_USERS.find(
-      u => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password
-    );
-
-    if (user) {
-      // Créer un objet utilisateur sans le mot de passe
-      const { password: _, ...userWithoutPassword } = user;
-      
-      // Sauvegarder les infos utilisateur
-      await AsyncStorage.setItem('userInfo', JSON.stringify(userWithoutPassword));
-      setUser(userWithoutPassword);
-
-      Alert.alert('Succès', `Bienvenue ${user.prenom} ${user.nom} !`);
-
-      // Rediriger selon le rôle
-      switch (user.role) {
-        case 'admin':
-          router.replace('/admin');
-          break;
-        case 'medecin':
-          router.replace('/medecin');
-          break;
-        case 'technicien':
-          router.replace('/technicien');
-          break;
-        default:
-          router.replace('/welcome');
+    try {
+      const resp = await fetch('http://localhost:8001/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const j = await resp.json();
+      if (j && j.success && j.token) {
+        const userObj = j.user;
+        // Save token and user
+        // Save token+user via context helper
+        await AsyncStorage.setItem('userToken', j.token);
+        await AsyncStorage.setItem('userInfo', JSON.stringify(userObj));
+        setUser(userObj, j.token);
+        
+        // Vérifier si l'utilisateur doit changer son mot de passe
+        if (userObj.mustChangePassword) {
+          Alert.alert(
+            'Changement de mot de passe requis',
+            'Vous devez changer votre mot de passe provisoire avant de continuer.',
+            [{ 
+              text: 'OK', 
+              onPress: () => router.replace({ 
+                pathname: '/change-password',
+                params: { user: JSON.stringify(userObj) }
+              })
+            }]
+          );
+          return;
+        }
+        
+        Alert.alert('Succès', `Bienvenue ${userObj.prenom} ${userObj.nom} !`);
+        // Redirect based on role
+        switch (userObj.role) {
+          case 'admin': router.replace('/admin'); break;
+          case 'medecin': router.replace('/medecin'); break;
+          case 'technicien': router.replace('/technicien'); break;
+          default: router.replace('/welcome');
+        }
+      } else {
+        Alert.alert('Erreur', j.message || 'Email ou mot de passe incorrect');
       }
-    } else {
-      Alert.alert('Erreur', 'Email ou mot de passe incorrect');
+    } catch (err) {
+      console.error('Login error', err);
+      Alert.alert('Erreur', 'Impossible de contacter le serveur');
     }
   };
 
   const quickLogin = async (userEmail) => {
-    const user = STATIC_USERS.find(u => u.email === userEmail);
-    if (user) {
-      setEmail(user.email);
-      setPassword(user.password);
+    // Quick login using known test accounts created by server script
+    const known = {
+      'admin@planning.com': { email: 'admin@hopital.com', password: 'Admin123!' },
+      'medecin@planning.com': { email: 'medecin@hopital.com', password: 'Medecin123!' },
+      'technicien@planning.com': { email: 'technicien@hopital.com', password: 'Technicien123!' },
+    };
+    const creds = known[userEmail];
+    if (creds) {
+      setEmail(creds.email);
+      setPassword(creds.password);
+      // Optionally auto-submit
+      setTimeout(() => handleLogin(), 300);
     }
   };
 
