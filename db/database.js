@@ -96,13 +96,12 @@ module.exports = {
   
   // ========== PLANNING ==========
   async getPlanning() {
-    // Le planning est stocké en JSON pour l'instant
-    // TODO: Migrer vers MySQL si nécessaire
+    // Le planning est stocké en JSON dans MySQL
     const rows = await query('SELECT * FROM planning ORDER BY date');
     const planning = {};
     rows.forEach(row => {
-      if (!planning[row.date]) planning[row.date] = [];
-      planning[row.date].push(JSON.parse(row.events || '[]'));
+      // events est déjà un array JSON, pas besoin de push
+      planning[row.date] = JSON.parse(row.events || '[]');
     });
     return planning;
   },

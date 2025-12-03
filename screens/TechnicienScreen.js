@@ -1,7 +1,9 @@
+import { useRouter } from "expo-router";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { usePlanning } from "../contexts/PlanningContext";
 
-export default function TechnicienScreen({ navigation }) {
+export default function TechnicienScreen() {
+  const router = useRouter();
   const { planning } = usePlanning();
   const jours = Object.keys(planning);
 
@@ -27,7 +29,7 @@ export default function TechnicienScreen({ navigation }) {
       {/* Bouton Chat */}
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.navigate('Chat')}
+        onPress={() => router.push('/chat')}
       >
         <Text style={styles.buttonText}>Chat 💬</Text>
       </TouchableOpacity>

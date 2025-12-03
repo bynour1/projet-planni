@@ -1,6 +1,8 @@
+import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-const AdminScreen = ({ navigation }) => {
+const AdminScreen = () => {
+  const router = useRouter();
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Page d&apos;Administration</Text>
@@ -9,7 +11,7 @@ const AdminScreen = ({ navigation }) => {
         {/* Bouton gestion utilisateurs */}
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate("UserManagement")}
+          onPress={() => router.push("/user-management")}
         >
           <Text style={styles.buttonText}>Gérer les utilisateurs</Text>
         </TouchableOpacity>
@@ -17,7 +19,7 @@ const AdminScreen = ({ navigation }) => {
         {/* Bouton gestion planning */}
        <TouchableOpacity
   style={styles.button}
-  onPress={() => navigation.navigate("Planning")}
+  onPress={() => router.push("/planning")}
 >
   <Text style={styles.buttonText}>Gérer les plannings</Text>
 </TouchableOpacity>
@@ -26,7 +28,7 @@ const AdminScreen = ({ navigation }) => {
         {/* Bouton chat */}
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate("Chat")}
+          onPress={() => router.push("/chat")}
         >
           <Text style={styles.buttonText}>Chat 💬</Text>
         </TouchableOpacity>
@@ -34,7 +36,7 @@ const AdminScreen = ({ navigation }) => {
         {/* Bouton déconnexion */}
         <TouchableOpacity
           style={[styles.button, { backgroundColor: "red" }]}
-          onPress={() => navigation.navigate("Login")}
+          onPress={() => router.push("/welcome")}
         >
           <Text style={styles.buttonText}>Déconnexion</Text>
         </TouchableOpacity>
