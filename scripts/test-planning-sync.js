@@ -1,5 +1,5 @@
 /* eslint-env node */
-// Test script to verify planning data in MySQL
+/* Test script to verify planning data in MySQL */
 require('dotenv').config();
 const path = require('path');
 const db = require(path.join(__dirname, '..', 'db', 'database'));

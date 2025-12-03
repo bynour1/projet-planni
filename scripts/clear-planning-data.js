@@ -1,5 +1,5 @@
 /* eslint-env node */
-// Script to clear test data from planning table
+/* Script to clear test data from planning table */
 require('dotenv').config();
 const path = require('path');
 const readline = require('readline');

@@ -1,5 +1,5 @@
 /* eslint-env node */
-// Script to create the planning table in MySQL database
+/* Script to create the planning table in MySQL database */
 require('dotenv').config();
 const path = require('path');
 const db = require(path.join(__dirname, '..', 'db', 'database'));
