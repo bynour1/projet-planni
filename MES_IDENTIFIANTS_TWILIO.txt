@@ -1,0 +1,40 @@
+# 🔐 Vos identifiants Twilio
+
+## À remplir après création du compte
+
+Une fois inscrit sur https://www.twilio.com/try-twilio :
+
+1. **Account SID** : _____________________________________
+   (Visible sur le dashboard, commence par AC...)
+
+2. **Auth Token** : _____________________________________
+   (Cliquez sur "Show" pour le voir)
+
+3. **Numéro Twilio** : _____________________________________
+   (Format : +1234567890)
+
+4. **Votre numéro tunisien vérifié** : +216_____________
+   (À vérifier dans "Verified Caller IDs")
+
+---
+
+## Configuration rapide du fichier .env
+
+Copiez ces lignes dans votre fichier `.env` en remplaçant les valeurs :
+
+```env
+# SMS CONFIGURATION (Twilio)
+TWILIO_ACCOUNT_SID=Votre_Account_SID_ici
+TWILIO_AUTH_TOKEN=Votre_Auth_Token_ici
+TWILIO_PHONE_NUMBER=+Votre_numero_Twilio
+```
+
+## Après configuration
+
+1. ✅ Fermez le terminal du serveur (Ctrl+C)
+2. ✅ Relancez : `node server.js`
+3. ✅ Testez l'envoi SMS depuis l'application
+
+---
+
+**Note** : Ne partagez JAMAIS votre Auth Token ! C'est comme un mot de passe.

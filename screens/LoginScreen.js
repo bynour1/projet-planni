@@ -132,6 +132,13 @@ export default function LoginScreen() {
         >
           <Text style={styles(theme).buttonText}>Se connecter</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles(theme).forgotPasswordLink}
+          onPress={() => router.push('/forgot-password')}
+        >
+          <Text style={styles(theme).forgotPasswordText}>Mot de passe oublié ?</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles(theme).quickLoginSection}>
@@ -233,6 +240,16 @@ const styles = (theme) => StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  forgotPasswordLink: {
+    marginTop: 15,
+    alignItems: 'center',
+    padding: 10,
+  },
+  forgotPasswordText: {
+    color: '#007bff',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   quickLoginSection: {
     marginTop: 20,

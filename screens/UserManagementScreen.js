@@ -116,6 +116,73 @@ export default function UserManagementScreen() {
     }
   };
 
+  // Admin: créer un utilisateur directement sans code
+  const handleCreateDirect = async () => {
+    // Vérifier qu'il y a au moins un email OU un téléphone
+    if ((!inviteEmail && !invitePhone) || !inviteName || !invitePrenom) {
+      return Alert.alert('Erreur', 'Veuillez remplir nom, prénom et au moins email OU téléphone');
+    }
+    
+    if (!provisionalPassword || provisionalPassword.length < 6) {
+      return Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
+    }
+    
+    try {
+      setLoading(true);
+      
+      const response = await fetch('http://localhost:8001/create-user-direct', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`
+        },
+        body: JSON.stringify({
+          email: inviteEmail.trim() || null,
+          phone: invitePhone.trim() || null,
+          password: provisionalPassword,
+          nom: inviteName.trim(),
+          prenom: invitePrenom.trim(),
+          role: inviteRole
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const contact = data.contact || inviteEmail || invitePhone;
+        Alert.alert(
+          'Succès', 
+          `Compte créé avec succès !\n\nIdentifiant : ${contact}\nMot de passe provisoire : ${data.provisionalPassword}\n\nCommuniquez ces identifiants au participant de manière sécurisée.\nIl devra changer son mot de passe lors de sa première connexion.`,
+          [{ text: 'OK' }]
+        );
+        
+        // Recharger la liste des utilisateurs
+        try { 
+          const r = await fetch('http://localhost:8001/users'); 
+          const u = await r.json(); 
+          if (u.success) setUsers(u.users); 
+        } catch(e){ }
+        
+        // Réinitialiser le formulaire
+        setInviteEmail('');
+        setInvitePhone('');
+        setInviteName('');
+        setInvitePrenom('');
+        setInviteRole('medecin');
+        setProvisionalPassword('');
+        setInviteMessage('');
+      } else {
+        Alert.alert('Erreur', data.message || 'Impossible de créer le compte');
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      console.error('Error creating user directly:', error);
+      Alert.alert('Erreur', 'Problème de connexion au serveur');
+    }
+  };
+
   // Admin: invite user (create user and send code)
   const handleInvite = async () => {
     if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email à inviter');
@@ -151,7 +218,7 @@ export default function UserManagementScreen() {
         setAdminConfirmContact(sendTo);
         setShowAdminConfirm(true);
         // reload users list
-        try { const r = await fetch('http://localhost:5000/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
+        try { const r = await fetch('http://localhost:8001/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
         // clear form on success
         setInviteEmail(''); setInvitePhone(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin'); setInviteSendCodeBy('email');
       } else {
@@ -351,33 +418,79 @@ export default function UserManagementScreen() {
       {/* Invite card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>👥 Créer un nouveau participant</Text>
-        <Text style={styles.infoText}>L'utilisateur recevra un code de confirmation pour activer son compte</Text>
+        <Text style={styles.infoText}>Choisissez votre méthode de création de compte</Text>
         <TextInput style={styles.input} placeholder="Nom *" value={inviteName} onChangeText={setInviteName} />
         <TextInput style={styles.input} placeholder="Prénom *" value={invitePrenom} onChangeText={setInvitePrenom} />
-        <TextInput style={styles.input} placeholder="Email *" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-        <TextInput style={styles.input} placeholder="Téléphone (optionnel)" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
-        
-        <Text style={styles.labelText}>📧 Envoyer le code de confirmation par :</Text>
-        <Picker selectedValue={inviteSendCodeBy} style={styles.picker} onValueChange={setInviteSendCodeBy}>
-          <Picker.Item label="✉️ Email" value="email" />
-          <Picker.Item label="📱 SMS / Téléphone" value="phone" />
-        </Picker>
+        <TextInput style={styles.input} placeholder="Email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+        <TextInput style={styles.input} placeholder="Téléphone" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
+        <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, fontStyle: 'italic' }}>* Au moins un email OU un téléphone est requis</Text>
         
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
         {inviteEmailError === 'Cet email est déjà actif' ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
         {users.find(u => u.email === inviteEmail && !u.isConfirmed) ? <Text style={{ color: 'blue', marginBottom: 8 }}>🔄 Cet email est en attente. Le code sera renvoyé.</Text> : null}
-        {inviteSendCodeBy === "phone" && !invitePhone ? <Text style={{ color: 'orange', marginBottom: 8 }}>⚠️ Veuillez entrer un numéro de téléphone pour l'envoi par SMS</Text> : null}
+        
         <Text style={styles.labelText}>Situation (Rôle) *</Text>
         <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
           <Picker.Item label="Médecin" value="medecin" />
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
+        
+        <View style={{ backgroundColor: '#f8f9fa', padding: 15, borderRadius: 8, marginBottom: 15 }}>
+          <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>📝 Mot de passe provisoire (optionnel)</Text>
+          <Text style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>Si vous entrez un mot de passe, le compte sera créé directement sans email de confirmation</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="Mot de passe provisoire (min. 6 caractères)" 
+            value={provisionalPassword} 
+            onChangeText={setProvisionalPassword} 
+            secureTextEntry={false}
+            autoCapitalize="none"
+          />
+          {provisionalPassword && provisionalPassword.length < 6 ? (
+            <Text style={{ color: 'orange', fontSize: 12 }}>⚠️ Le mot de passe doit contenir au moins 6 caractères</Text>
+          ) : null}
+        </View>
+        
+        {!provisionalPassword && (
+          <>
+            <Text style={styles.labelText}>📧 Envoyer le code de confirmation par :</Text>
+            <Picker selectedValue={inviteSendCodeBy} style={styles.picker} onValueChange={setInviteSendCodeBy}>
+              <Picker.Item label="✉️ Email" value="email" />
+              <Picker.Item label="📱 SMS / Téléphone" value="phone" />
+            </Picker>
+            {inviteSendCodeBy === "phone" && !invitePhone ? <Text style={{ color: 'orange', marginBottom: 8 }}>⚠️ Veuillez entrer un numéro de téléphone pour l'envoi par SMS</Text> : null}
+          </>
+        )}
+        
         <TouchableOpacity 
-          style={[styles.button, (!inviteEmail || (!users.find(u => u.email === inviteEmail && !u.isConfirmed) && (!inviteName || !invitePrenom)) || inviteChecking || (inviteEmailError === 'Cet email est déjà actif') || (inviteSendCodeBy === "phone" && !invitePhone)) ? { opacity: 0.6 } : null]} 
-          onPress={handleInvite} 
-          disabled={!inviteEmail || (!users.find(u => u.email === inviteEmail && !u.isConfirmed) && (!inviteName || !invitePrenom)) || inviteChecking || loading || (inviteEmailError === 'Cet email est déjà actif') || (inviteSendCodeBy === "phone" && !invitePhone)}
+          style={[
+            styles.button, 
+            (
+              (!inviteEmail && !invitePhone) || 
+              !inviteName || 
+              !invitePrenom || 
+              inviteChecking || 
+              loading ||
+              (inviteEmailError === 'Cet email est déjà actif') || 
+              (provisionalPassword && provisionalPassword.length < 6) ||
+              (!provisionalPassword && inviteSendCodeBy === "phone" && !invitePhone) ||
+              (!provisionalPassword && inviteSendCodeBy === "email" && !inviteEmail)
+            ) ? { opacity: 0.6 } : null
+          ]} 
+          onPress={provisionalPassword ? handleCreateDirect : handleInvite} 
+          disabled={
+            (!inviteEmail && !invitePhone) || 
+            !inviteName || 
+            !invitePrenom || 
+            inviteChecking || 
+            loading ||
+            (inviteEmailError === 'Cet email est déjà actif') || 
+            (provisionalPassword && provisionalPassword.length < 6) ||
+            (!provisionalPassword && inviteSendCodeBy === "phone" && !invitePhone) ||
+            (!provisionalPassword && inviteSendCodeBy === "email" && !inviteEmail)
+          }
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{users.find(u => u.email === inviteEmail && !u.isConfirmed) ? '🔄 Renvoyer le code' : '✉️ Créer et envoyer le code'}</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{provisionalPassword ? '✅ Créer directement' : (users.find(u => u.email === inviteEmail && !u.isConfirmed) ? '🔄 Renvoyer le code' : '✉️ Créer et envoyer le code')}</Text>}
         </TouchableOpacity>
         {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}
         {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID invité: #{lastInvitedId}</Text> : null}

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login - Planning Médical</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .server-status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .server-status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        .server-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .quick-fill {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .quick-fill button {
+            background: #6c757d;
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 Planning Médical</h1>
+        <p class="subtitle">Connexion au système</p>
+        
+        <div id="serverStatus" class="server-status offline">
+            ⏳ Vérification du serveur...
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="votre@email.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" placeholder="••••••••" required>
+            </div>
+            
+            <button type="submit" id="loginBtn">Se connecter</button>
+        </form>
+        
+        <div id="message" class="message"></div>
+        
+        <div class="quick-fill">
+            <p style="color: #666; font-size: 14px; margin-bottom: 10px;">Test rapide :</p>
+            <button type="button" onclick="fillAdmin()">Remplir Admin</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8001';
+        
+        // Vérifier le serveur au chargement
+        checkServer();
+        
+        async function checkServer() {
+            try {
+                const response = await fetch(`${API_URL}/`);
+                if (response.ok) {
+                    showServerStatus(true);
+                } else {
+                    showServerStatus(false);
+                }
+            } catch (error) {
+                showServerStatus(false);
+            }
+        }
+        
+        function showServerStatus(online) {
+            const statusEl = document.getElementById('serverStatus');
+            if (online) {
+                statusEl.className = 'server-status online';
+                statusEl.textContent = '✅ Serveur backend connecté';
+            } else {
+                statusEl.className = 'server-status offline';
+                statusEl.textContent = '❌ Serveur backend déconnecté - Lancez: node server.js';
+            }
+        }
+        
+        function showMessage(text, type) {
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = text;
+            msgEl.className = `message ${type}`;
+            msgEl.style.display = 'block';
+            
+            setTimeout(() => {
+                msgEl.style.display = 'none';
+            }, 5000);
+        }
+        
+        function fillAdmin() {
+            document.getElementById('email').value = 'Chakroun.sarra72@gmtariana.tn';
+            document.getElementById('password').value = 'Sarra123.';
+        }
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('loginBtn');
+            
+            if (!email || !password) {
+                showMessage('Veuillez remplir tous les champs', 'error');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Connexion...';
+            
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(`✅ Bienvenue ${data.user.prenom} ${data.user.nom} !`, 'success');
+                    console.log('Token:', data.token);
+                    console.log('User:', data.user);
+                    
+                    // Sauvegarder le token
+                    localStorage.setItem('userToken', data.token);
+                    localStorage.setItem('userInfo', JSON.stringify(data.user));
+                    
+                    setTimeout(() => {
+                        showMessage('✅ Connexion réussie ! Redirection...', 'success');
+                    }, 1000);
+                } else {
+                    showMessage(`❌ ${data.message || 'Erreur de connexion'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showMessage('❌ Impossible de contacter le serveur. Vérifiez que node server.js est lancé.', 'error');
+                showServerStatus(false);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Se connecter';
+            }
+        });
+        
+        // Vérifier le serveur toutes les 5 secondes
+        setInterval(checkServer, 5000);
+    </script>
+</body>
+</html>

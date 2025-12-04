@@ -1,0 +1,46 @@
+# 🔐 Mes Identifiants Telegram Bot
+
+## Configuration rapide
+
+### 1. Token du Bot (de @BotFather)
+```
+TELEGRAM_BOT_TOKEN=_________________________________
+```
+
+### 2. Votre Chat ID (de @userinfobot)
+```
+TELEGRAM_CHAT_ID=_________________________________
+```
+
+---
+
+## Étapes rapides
+
+### Créer le bot
+1. Telegram → Chercher `@BotFather`
+2. Envoyer `/newbot`
+3. Nom : `Planning Medical Bot`
+4. Username : `planning_medical_bot`
+5. Copier le TOKEN
+
+### Obtenir Chat ID
+1. Telegram → Chercher `@userinfobot`
+2. Démarrer conversation
+3. Copier le numéro affiché
+
+### Configurer
+Ajoutez ces lignes dans `.env` :
+```env
+TELEGRAM_BOT_TOKEN=votre_token_ici
+TELEGRAM_CHAT_ID=votre_chat_id_ici
+```
+
+### Tester
+1. Redémarrer le serveur
+2. Créer un participant avec téléphone
+3. Choisir "SMS / Téléphone"
+4. Recevoir le code sur Telegram !
+
+---
+
+**Guide complet** : GUIDE_TELEGRAM.md

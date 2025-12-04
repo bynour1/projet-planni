@@ -12,12 +12,13 @@ const jwt = require('jsonwebtoken');
 // Gestionnaires d'erreurs globaux pour debugging
 process.on('uncaughtException', (err) => {
   console.error('❌ ERREUR NON CAPTURÉE:', err);
-  process.exit(1);
+  console.error(err.stack);
+  // process.exit(1); // Commenté pour debug
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ PROMESSE REJETÉE NON GÉRÉE:', reason);
-  process.exit(1);
+  // process.exit(1); // Commenté pour debug
 });
 
 const app = express();
@@ -146,9 +147,18 @@ app.post('/login', async (req, res) => {
 // Utility: send confirmation either by email or by SMS (Twilio)
 async function sendConfirmationContact(to, code, userInfo = {}) {
   const from = process.env.EMAIL_FROM || (process.env.EMAIL_USER || process.env.SMTP_USER || 'no-reply@planning.com');
+  const isPasswordReset = userInfo.isPasswordReset || false;
   
   // if looks like email -> send email
   if (typeof to === 'string' && to.includes('@')) {
+    const title = isPasswordReset ? '🔒 Réinitialisation de mot de passe' : '🏥 Code de Confirmation';
+    const intro = isPasswordReset 
+      ? 'Vous avez demandé la réinitialisation de votre mot de passe sur <strong>Planning Médical</strong>.'
+      : 'Vous avez été invité(e) à rejoindre la plateforme <strong>Planning Médical</strong>.';
+    const instructions = isPasswordReset
+      ? '<li>Ce code est valable pour une seule utilisation</li><li>Entrez ce code pour réinitialiser votre mot de passe</li><li>Si vous n\'avez pas demandé cette réinitialisation, ignorez cet email</li>'
+      : '<li>Ce code est valable pour une seule utilisation</li><li>Communiquez ce code à l\'administrateur pour activer votre compte</li><li>Une fois votre compte activé, vous pourrez créer votre mot de passe</li>';
+    
     const htmlTemplate = `
       <!DOCTYPE html>
       <html>
@@ -168,20 +178,18 @@ async function sendConfirmationContact(to, code, userInfo = {}) {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🏥 Code de Confirmation</h1>
+            <h1>${title}</h1>
           </div>
           <div class="content">
             <p>Bonjour${userInfo.nom ? ' ' + userInfo.prenom + ' ' + userInfo.nom : ''},</p>
-            <p>Vous avez été invité(e) à rejoindre la plateforme <strong>Planning Médical</strong>.</p>
-            <p>Voici votre code de confirmation à 6 chiffres :</p>
+            <p>${intro}</p>
+            <p>Voici votre code ${isPasswordReset ? 'de réinitialisation' : 'de confirmation'} à 6 chiffres :</p>
             <div class="code-box">
               <div class="code">${code}</div>
             </div>
             <p><strong>Important :</strong></p>
             <ul>
-              <li>Ce code est valable pour une seule utilisation</li>
-              <li>Communiquez ce code à l'administrateur pour activer votre compte</li>
-              <li>Une fois votre compte activé, vous pourrez créer votre mot de passe</li>
+              ${instructions}
             </ul>
             <p>Si vous n'avez pas demandé ce code, vous pouvez ignorer cet email.</p>
           </div>
@@ -193,7 +201,7 @@ async function sendConfirmationContact(to, code, userInfo = {}) {
       </html>
     `;
     
-    const textVersion = `Bonjour${userInfo.nom ? ' ' + userInfo.prenom + ' ' + userInfo.nom : ''},\n\nVotre code de confirmation est : ${code}\n\nCommuniquez ce code à l'administrateur pour activer votre compte.\n\n© 2025 Planning Médical`;
+    const textVersion = `Bonjour${userInfo.nom ? ' ' + userInfo.prenom + ' ' + userInfo.nom : ''},\n\nVotre code ${isPasswordReset ? 'de réinitialisation' : 'de confirmation'} est : ${code}\n\n${isPasswordReset ? 'Utilisez ce code pour réinitialiser votre mot de passe.' : 'Communiquez ce code à l\'administrateur pour activer votre compte.'}\n\n© 2025 Planning Médical`;
     
     return transporter.sendMail({ 
       from, 
@@ -204,23 +212,79 @@ async function sendConfirmationContact(to, code, userInfo = {}) {
     });
   }
 
-  // else assume phone number -> use Twilio if configured
+  // else assume phone number -> try Telegram Bot first, then Twilio
+  
+  // Toujours afficher le code dans la console pour le développement
+  console.log('\n' + '='.repeat(60));
+  console.log('📱 CODE SMS/TELEGRAM GÉNÉRÉ');
+  console.log('='.repeat(60));
+  console.log(`Destinataire : ${to}`);
+  console.log(`Code        : ${code}`);
+  console.log(`Nom         : ${userInfo.prenom || ''} ${userInfo.nom || ''}`);
+  console.log('='.repeat(60) + '\n');
+  
+  // Essayer d'abord Telegram (GRATUIT)
+  const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  
+  if (telegramBotToken && telegramChatId) {
+    try {
+      const TelegramBot = require('node-telegram-bot-api');
+      const bot = new TelegramBot(telegramBotToken);
+      
+      const isPasswordReset = userInfo.isPasswordReset || false;
+      const title = isPasswordReset ? '🔒 *Réinitialisation de mot de passe*' : '🏥 *Planning Médical*';
+      const instruction = isPasswordReset 
+        ? 'Utilisez ce code pour réinitialiser votre mot de passe.'
+        : 'Communiquez ce code à l\'administrateur pour activer votre compte.';
+      
+      const message = `${title}\n\n` +
+                     `👤 ${userInfo.prenom || ''} ${userInfo.nom || ''}\n` +
+                     `📱 ${to}\n\n` +
+                     `🔐 *Code ${isPasswordReset ? 'de réinitialisation' : 'de confirmation'} :*\n` +
+                     `\`${code}\`\n\n` +
+                     `${instruction}`;
+      
+      await bot.sendMessage(telegramChatId, message, { parse_mode: 'Markdown' });
+      console.log('✅ Message envoyé avec succès via Telegram Bot (GRATUIT)\n');
+      return { success: true, method: 'telegram' };
+    } catch (telegramErr) {
+      console.error('❌ Erreur Telegram:', telegramErr.message);
+      console.log('⏭️  Tentative avec Twilio...\n');
+    }
+  }
+  
+  // Sinon essayer Twilio (PAYANT)
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_FROM;
-  if (!sid || !token || !fromNumber) {
-    // no Twilio configured; throw to let caller fall back to dev-mode
-    const err = new Error('Twilio not configured');
-    err.code = 'NO_TWILIO';
-    throw err;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+  
+  if (sid && token && fromNumber) {
+    try {
+      const twilio = require('twilio')(sid, token);
+      const result = await twilio.messages.create({ 
+        body: `Planning Médical - Votre code de confirmation est : ${code}\n\nCommuniquez ce code à l'administrateur.`, 
+        from: fromNumber, 
+        to 
+      });
+      console.log('✅ SMS envoyé avec succès via Twilio\n');
+      return result;
+    } catch (twilioErr) {
+      console.error('❌ Erreur Twilio:', twilioErr.message);
+      console.log('💡 Le code est affiché ci-dessus pour utilisation manuelle\n');
+      throw twilioErr;
+    }
   }
-  // require twilio lazily so app doesn't crash if package missing and user doesn't use SMS
-  const twilio = require('twilio')(sid, token);
-  return twilio.messages.create({ 
-    body: `Planning Médical - Votre code de confirmation est : ${code}\n\nCommuniquez ce code à l'administrateur.`, 
-    from: fromNumber, 
-    to 
-  });
+  
+  // Aucun service configuré
+  console.log('⚠️  Aucun service SMS configuré - Le code est affiché ci-dessus');
+  console.log('💡 Options GRATUITES :');
+  console.log('   1. Telegram Bot (RECOMMANDÉ) - Consultez GUIDE_TELEGRAM.md');
+  console.log('   2. WhatsApp Business API');
+  console.log('📖 Consultez CONFIGURATION_SMS.md pour plus d\'informations\n');
+  const err = new Error('No SMS service configured - Code shown in console');
+  err.code = 'NO_SMS_SERVICE';
+  throw err;
 }
 
 // GET users (pour charger la liste des utilisateurs)
@@ -528,6 +592,51 @@ app.post('/create-user', adminOnly, async (req, res) => {
   return res.json({ success: true, message: 'Utilisateur créé/mis à jour' });
 });
 
+// Route pour créer un utilisateur directement sans code - ADMIN ONLY
+app.post('/create-user-direct', adminOnly, async (req, res) => {
+  try {
+    const { email, phone, password, nom, prenom, role } = req.body;
+    
+    // Au moins email OU téléphone requis
+    if ((!email && !phone) || !password || !nom || !prenom) {
+      return res.status(400).json({ success: false, message: 'Au moins email OU téléphone, mot de passe, nom et prénom requis' });
+    }
+    
+    // Vérifier si l'utilisateur existe déjà (par email ou téléphone)
+    const contact = email || phone;
+    const existingUser = await db.findUserByContact(contact);
+    if (existingUser && existingUser.isConfirmed) {
+      return res.status(400).json({ success: false, message: 'Ce contact est déjà utilisé par un compte actif' });
+    }
+    
+    // Hash du mot de passe
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Créer l'utilisateur directement confirmé avec mustChangePassword = 1
+    await db.createOrUpdateUser({
+      email: email ? email.trim().toLowerCase() : null,
+      phone: phone ? phone.trim() : null,
+      password: hashedPassword,
+      nom: nom.trim(),
+      prenom: prenom.trim(),
+      role: role || 'medecin'
+    });
+    
+    // Marquer comme devant changer le mot de passe
+    await db.setProvisionalPassword(contact, hashedPassword);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Utilisateur créé avec succès. Il devra changer son mot de passe lors de sa première connexion.',
+      provisionalPassword: password,
+      contact: email || phone
+    });
+  } catch (error) {
+    console.error('Error creating user directly:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // Route pour changer le mot de passe (participant)
 app.post('/change-password', authenticateToken, async (req, res) => {
   try {
@@ -562,6 +671,96 @@ app.post('/change-password', authenticateToken, async (req, res) => {
     return res.json({ success: true, message: 'Mot de passe changé avec succès' });
   } catch (error) {
     console.error('Error changing password:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Route pour demander la réinitialisation du mot de passe (envoie un code)
+app.post('/forgot-password', async (req, res) => {
+  try {
+    const { contact } = req.body; // email ou téléphone
+    
+    if (!contact) {
+      return res.status(400).json({ success: false, message: 'Email ou téléphone requis' });
+    }
+    
+    // Vérifier que l'utilisateur existe
+    const user = await db.findUserByContact(contact);
+    if (!user || !user.isConfirmed) {
+      return res.status(404).json({ success: false, message: 'Aucun compte actif trouvé avec cet email/téléphone' });
+    }
+    
+    // Générer un code à 6 chiffres
+    const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+    
+    // Sauvegarder le code dans la table codes
+    await db.saveCode(contact, resetCode);
+    
+    // Envoyer le code par email ou Telegram
+    try {
+      await sendConfirmationContact(contact, resetCode, { 
+        nom: user.nom, 
+        prenom: user.prenom, 
+        role: user.role,
+        isPasswordReset: true 
+      });
+      
+      const method = contact.includes('@') ? 'email' : 'Telegram/SMS';
+      return res.json({ 
+        success: true, 
+        message: `Code de réinitialisation envoyé par ${method}`,
+        contact 
+      });
+    } catch (sendErr) {
+      console.warn('Send reset code failed (dev-mode):', sendErr.message);
+      // En mode dev, on retourne quand même succès avec le code
+      return res.json({ 
+        success: true, 
+        message: 'Code de réinitialisation généré (mode dev)', 
+        code: resetCode,
+        contact 
+      });
+    }
+  } catch (error) {
+    console.error('Error requesting password reset:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Route pour vérifier le code et réinitialiser le mot de passe
+app.post('/reset-password', async (req, res) => {
+  try {
+    const { contact, code, newPassword } = req.body;
+    
+    if (!contact || !code || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Contact, code et nouveau mot de passe requis' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caractères' });
+    }
+    
+    // Vérifier le code
+    const savedCode = await db.getCode(contact);
+    if (!savedCode || savedCode !== String(code)) {
+      return res.status(400).json({ success: false, message: 'Code incorrect ou expiré' });
+    }
+    
+    // Hasher le nouveau mot de passe
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Mettre à jour le mot de passe
+    await db.updateUserPassword(contact, hashedPassword);
+    
+    // Supprimer le code utilisé
+    await db.deleteCode(contact);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter.' 
+    });
+  } catch (error) {
+    console.error('Error resetting password:', error);
     return res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
