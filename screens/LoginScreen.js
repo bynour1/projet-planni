@@ -107,11 +107,11 @@ export default function LoginScreen() {
       <View style={styles(theme).form}>
         <TextInput
           style={styles(theme).input}
-          placeholder="Email"
+          placeholder="Email ou téléphone"
           placeholderTextColor={theme.textSecondary}
           value={email}
           onChangeText={setEmail}
-          keyboardType="email-address"
+          keyboardType="default"
           autoCapitalize="none"
           autoCorrect={false}
         />

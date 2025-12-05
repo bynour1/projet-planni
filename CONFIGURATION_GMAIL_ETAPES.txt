@@ -1,0 +1,227 @@
+═══════════════════════════════════════════════════════════════
+  📧 CONFIGURATION GMAIL POUR ENVOI AUTOMATIQUE D'EMAILS
+═══════════════════════════════════════════════════════════════
+
+🎯 OBJECTIF: Envoyer automatiquement les codes par email aux participants
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 ÉTAPE 1: ACTIVER LA VALIDATION EN 2 ÉTAPES (2 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Ouvrez ce lien dans votre navigateur:
+    https://myaccount.google.com/security
+
+2️⃣  Connectez-vous avec votre compte Gmail si demandé
+
+3️⃣  Cherchez "Validation en 2 étapes" dans la page
+
+4️⃣  Si c'est DÉSACTIVÉ, cliquez dessus:
+    • Suivez les instructions
+    • Choisissez SMS ou application Google
+    • Terminez l'activation
+
+5️⃣  Si c'est déjà ACTIVÉ:
+    ✅ Parfait ! Passez à l'étape 2
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔑 ÉTAPE 2: CRÉER UN MOT DE PASSE D'APPLICATION (3 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Ouvrez ce lien:
+    https://myaccount.google.com/apppasswords
+
+2️⃣  Si demandé, reconnectez-vous avec votre mot de passe Gmail
+
+3️⃣  Vous arrivez sur "Mots de passe des applications"
+
+4️⃣  En bas, il y a un champ "Nom de l'application":
+    • Tapez: Planning Medical
+    • Cliquez sur "Créer"
+
+5️⃣  Google génère un mot de passe qui ressemble à:
+    ┌──────────────────────────────────────────────────┐
+    │ Mot de passe de l'application généré             │
+    │                                                   │
+    │ xyzw abcd efgh ijkl                              │ ← COPIEZ TOUT ÇA !
+    │                                                   │
+    │ Utilisez ce mot de passe d'application de 16     │
+    │ caractères pour vous connecter à votre compte    │
+    └──────────────────────────────────────────────────┘
+
+🔴 IMPORTANT: 
+   • Copiez ce mot de passe COMPLET (avec les espaces)
+   • Vous ne le reverrez plus jamais !
+   • Collez-le quelque part temporairement
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💾 ÉTAPE 3: CONFIGURER LE FICHIER .ENV
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Ouvrez VS Code
+
+2️⃣  Ouvrez le fichier: .env
+    (Dans: C:\Users\MSI\Desktop\STAGE\projet-planning)
+
+3️⃣  Cherchez ces lignes (vers le haut du fichier):
+
+    EMAIL_SERVICE=gmail
+    EMAIL_USER=Chakroun.sarra72@gmail.com
+    EMAIL_PASS=votre_mot_de_passe_application_16_caracteres
+
+4️⃣  Modifiez UNIQUEMENT la ligne EMAIL_PASS:
+    • Supprimez: votre_mot_de_passe_application_16_caracteres
+    • Collez votre mot de passe copié de Google
+
+    RÉSULTAT FINAL:
+    ┌──────────────────────────────────────────────────────────┐
+    │ EMAIL_SERVICE=gmail                                       │
+    │ EMAIL_USER=Chakroun.sarra72@gmail.com                     │
+    │ EMAIL_PASS=xyzw abcd efgh ijkl                            │
+    └──────────────────────────────────────────────────────────┘
+
+    🔴 ATTENTION:
+       • Gardez les espaces dans le mot de passe
+       • Ne mettez PAS de guillemets
+       • Utilisez votre VRAI email Gmail sur la ligne EMAIL_USER
+
+5️⃣  Vérifiez aussi la ligne EMAIL_FROM (quelques lignes plus bas):
+    EMAIL_FROM=Planning Medical <Chakroun.sarra72@gmail.com>
+    
+    Remplacez par VOTRE email Gmail
+
+6️⃣  Sauvegardez le fichier (Ctrl+S)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 ÉTAPE 4: REDÉMARRER LE SERVEUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Fermez la fenêtre du serveur backend (terminal noir)
+    Ou appuyez Ctrl+C dedans
+
+2️⃣  Dans VS Code, ouvrez un nouveau terminal PowerShell
+
+3️⃣  Tapez:
+    node server.js
+
+4️⃣  Vérifiez le message de démarrage:
+
+    ✅ SI VOUS VOYEZ:
+       "✅ Configuration email OK - Prêt à envoyer des messages"
+       → PARFAIT ! Tout fonctionne !
+
+    ❌ SI VOUS VOYEZ:
+       "❌ ERREUR DE CONFIGURATION EMAIL"
+       → Vérifiez:
+         • Le mot de passe d'application est correct
+         • Votre email Gmail est correct
+         • Vous avez bien sauvegardé le fichier .env
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧪 ÉTAPE 5: TESTER L'ENVOI D'EMAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MÉTHODE 1: Script de test rapide
+────────────────────────────────
+
+1️⃣  Dans le terminal PowerShell, tapez:
+    node test-email.js votre.email@test.com
+
+    (Remplacez par un vrai email où vous pouvez recevoir)
+
+2️⃣  Le script teste la connexion et envoie un email de test
+
+3️⃣  Vérifiez votre boîte mail (et les spams !)
+
+MÉTHODE 2: Via l'application
+─────────────────────────────
+
+1️⃣  Ouvrez: http://localhost:8081
+
+2️⃣  Connectez-vous comme admin
+
+3️⃣  Allez dans "Gestion des utilisateurs"
+
+4️⃣  Créez un nouveau participant:
+    • Nom: Test
+    • Prénom: Email
+    • Email: votre.email@test.com
+    • Rôle: Médecin
+    • Sélectionnez: "📧 Email"
+    • Cliquez "Créer et envoyer le code"
+
+5️⃣  Vérifiez votre boîte mail !
+
+    ✅ EMAIL REÇU = Configuration réussie !
+    ❌ PAS D'EMAIL = Vérifiez les spams ou la config
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📧 À QUOI RESSEMBLE L'EMAIL ENVOYÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Le participant reçoit un email professionnel:
+
+┌──────────────────────────────────────────────────────────┐
+│ De: Planning Medical <Chakroun.sarra72@gmail.com>        │
+│ À: participant@email.com                                  │
+│ Objet: 🔐 Code de confirmation - Planning Médical        │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│ 🏥 Code de Confirmation                                  │
+│                                                           │
+│ Bonjour Dr. Ahmed,                                        │
+│                                                           │
+│ Vous avez été invité(e) à rejoindre la plateforme        │
+│ Planning Médical.                                         │
+│                                                           │
+│ Voici votre code de confirmation à 6 chiffres:           │
+│                                                           │
+│           ╔════════════╗                                  │
+│           ║   123456   ║                                  │
+│           ╚════════════╝                                  │
+│                                                           │
+│ Ce code est valable pour une seule utilisation.          │
+│                                                           │
+│ © 2025 Planning Médical                                  │
+└──────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❓ DÉPANNAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ Erreur: "Invalid login"
+   → Vous n'utilisez pas un mot de passe d'application
+   → Retournez à l'étape 2
+
+❌ Erreur: "Connection timeout"
+   → Vérifiez votre connexion Internet
+   → Vérifiez le pare-feu
+
+❌ Email non reçu
+   → Vérifiez les SPAMS
+   → Attendez 1-2 minutes
+   → Vérifiez l'email du destinataire
+
+❌ "ERREUR DE CONFIGURATION EMAIL"
+   → Le mot de passe contient peut-être des guillemets
+   → Format correct: EMAIL_PASS=xyzw abcd efgh ijkl
+   → PAS: EMAIL_PASS="xyzw abcd efgh ijkl"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ RÉCAPITULATIF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Maintenant que Gmail est configuré:
+
+✅ Les participants avec EMAIL recevront automatiquement
+   leur code de confirmation par email
+
+✅ Vous n'avez rien à faire manuellement !
+
+✅ C'est GRATUIT (500 emails/jour)
+
+✅ C'est PROFESSIONNEL
+
+Pour les participants SANS email:
+→ Utilisez Telegram Bot (voir MES_INSTRUCTIONS_TELEGRAM.txt)
+
+═══════════════════════════════════════════════════════════════

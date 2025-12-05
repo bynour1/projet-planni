@@ -27,21 +27,28 @@ export default function ForgotPasswordScreen() {
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert(
-          'Code envoyé',
-          data.code 
-            ? `Code de réinitialisation : ${data.code}\n\nEn mode développement, le code est affiché ici et dans le terminal du serveur.`
-            : 'Un code de réinitialisation a été envoyé. Vérifiez votre email ou Telegram.',
-          [{ text: 'OK', onPress: () => setStep(2) }]
-        );
+        // Passer directement à l'étape 2
+        setStep(2);
+        setLoading(false);
+        
+        // Afficher le code après le changement d'écran
+        setTimeout(() => {
+          Alert.alert(
+            '✅ Code envoyé !',
+            data.code 
+              ? `Votre code de réinitialisation :\n\n${data.code}\n\nEntrez ce code ci-dessous pour continuer.`
+              : 'Un code de réinitialisation a été envoyé. Vérifiez votre email ou Telegram.',
+            [{ text: 'OK' }]
+          );
+        }, 100);
       } else {
+        setLoading(false);
         Alert.alert('Erreur', data.message || 'Erreur lors de l\'envoi du code');
       }
     } catch (error) {
+      setLoading(false);
       console.error('Error requesting reset code:', error);
       Alert.alert('Erreur', 'Impossible de contacter le serveur');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -94,10 +101,22 @@ export default function ForgotPasswordScreen() {
       <View style={styles.header}>
         <Text style={styles.icon}>🔒</Text>
         <Text style={styles.title}>Mot de passe oublié</Text>
+        
+        {/* Indicateur d'étapes */}
+        <View style={styles.stepIndicator}>
+          <View style={[styles.stepDot, step >= 1 && styles.stepDotActive]}>
+            <Text style={[styles.stepNumber, step >= 1 && styles.stepNumberActive]}>1</Text>
+          </View>
+          <View style={[styles.stepLine, step >= 2 && styles.stepLineActive]} />
+          <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]}>
+            <Text style={[styles.stepNumber, step >= 2 && styles.stepNumberActive]}>2</Text>
+          </View>
+        </View>
+        
         <Text style={styles.subtitle}>
           {step === 1 
-            ? 'Entrez votre email ou téléphone pour recevoir un code de réinitialisation'
-            : 'Entrez le code reçu et choisissez un nouveau mot de passe'
+            ? '📧 Étape 1 : Entrez votre email ou téléphone'
+            : '🔑 Étape 2 : Entrez le code et votre nouveau mot de passe'
           }
         </Text>
       </View>
@@ -230,6 +249,41 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     paddingHorizontal: 20,
+    marginTop: 10,
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 20,
+  },
+  stepDot: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepDotActive: {
+    backgroundColor: '#667eea',
+  },
+  stepNumber: {
+    color: '#999',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  stepNumberActive: {
+    color: '#fff',
+  },
+  stepLine: {
+    width: 60,
+    height: 3,
+    backgroundColor: '#ddd',
+    marginHorizontal: 5,
+  },
+  stepLineActive: {
+    backgroundColor: '#667eea',
   },
   form: {
     width: '100%',

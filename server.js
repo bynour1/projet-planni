@@ -65,46 +65,73 @@ function requireAdmin(req, res, next) {
 // Middleware combiné : authentification + admin
 const adminOnly = [authenticateToken, requireAdmin];
 
-// Configure Nodemailer transporter using environment variables.
-// Support either a named service (EMAIL_SERVICE) or explicit SMTP settings (SMTP_HOST/SMTP_PORT/SMTP_SECURE).
+// ╔════════════════════════════════════════════════════════════════╗
+// ║  Configuration Nodemailer avec support multi-services         ║
+// ╚════════════════════════════════════════════════════════════════╝
 function createTransporter() {
   const opts = {};
+  
+  // Option 1: Service nommé (Gmail, Outlook, etc.)
   if (process.env.EMAIL_SERVICE) {
     opts.service = process.env.EMAIL_SERVICE;
-  } else if (process.env.SMTP_HOST) {
+    console.log(`📧 Configuration email: ${process.env.EMAIL_SERVICE}`);
+  } 
+  // Option 2: SMTP personnalisé (Mailtrap, SendGrid, etc.)
+  else if (process.env.SMTP_HOST) {
     opts.host = process.env.SMTP_HOST;
     opts.port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
     opts.secure = process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1';
+    console.log(`📧 Configuration SMTP: ${opts.host}:${opts.port}`);
+  } else {
+    console.warn('⚠️  ATTENTION: Aucune configuration email détectée');
+    console.warn('   Les emails ne seront pas envoyés.');
+    console.warn('   Consultez le fichier .env pour configurer Gmail, Outlook ou Mailtrap');
   }
 
-  // Add auth if provided
+  // Authentification
   if (process.env.EMAIL_USER || process.env.SMTP_USER) {
     opts.auth = {
       user: process.env.EMAIL_USER || process.env.SMTP_USER,
       pass: process.env.EMAIL_PASS || process.env.SMTP_PASS || ''
     };
+    console.log(`   Utilisateur: ${opts.auth.user}`);
   }
 
-  // If nothing configured, transporter will still be created but sending will likely fail.
   return nodemailer.createTransport(opts);
 }
 
 const transporter = createTransporter();
+
+// Vérifier la connexion email au démarrage
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('\n❌ ERREUR DE CONFIGURATION EMAIL:');
+    console.error('   ', error.message);
+    console.error('\n💡 SOLUTIONS:');
+    console.error('   1. Vérifiez vos identifiants dans le fichier .env');
+    console.error('   2. Pour Gmail: créez un mot de passe d\'application');
+    console.error('      https://myaccount.google.com/apppasswords');
+    console.error('   3. Ou utilisez Mailtrap pour les tests (gratuit)');
+    console.error('      https://mailtrap.io\n');
+  } else {
+    console.log('✅ Configuration email OK - Prêt à envoyer des messages\n');
+  }
+});
 
 // ===== ENDPOINT DE LOGIN =====
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email et mot de passe requis.' });
+    return res.status(400).json({ success: false, message: 'Email/téléphone et mot de passe requis.' });
   }
   
   try {
-    // Récupérer l'utilisateur
-    const user = await db.findUserByEmail(email);
+    // Récupérer l'utilisateur (par email OU téléphone)
+    const user = await db.findUserByContact(email); // findUserByContact supporte email et téléphone
     
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect.' });
+      return res.status(401).json({ success: false, message: 'Identifiant ou mot de passe incorrect.' });
     }
     
     if (!user.isConfirmed) {

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from "@react-native-picker/picker";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -78,7 +79,7 @@ export default function UserManagementScreen() {
 
 
 
-  // Admin: renvoyer le code à un utilisateur en attente
+  // Admin: renvoyer le code à un utilisateur en attente 
   const handleResendCode = async () => {
     if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email');
     

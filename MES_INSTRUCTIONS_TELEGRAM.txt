@@ -1,0 +1,152 @@
+═══════════════════════════════════════════════════════════════
+  📱 COMMENT OBTENIR VOS IDENTIFIANTS TELEGRAM BOT
+═══════════════════════════════════════════════════════════════
+
+🎯 BUT: Recevoir les codes de vérification sur votre téléphone
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 ÉTAPE 1: CRÉER LE BOT (30 secondes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Ouvrez Telegram sur votre téléphone
+    (Si vous ne l'avez pas: téléchargez depuis Play Store)
+
+2️⃣  Cliquez sur la loupe 🔍 (recherche) en haut
+
+3️⃣  Tapez: @BotFather
+    (c'est le robot officiel de Telegram)
+
+4️⃣  Cliquez sur @BotFather dans les résultats
+
+5️⃣  Appuyez sur le bouton "START" ou "DÉMARRER"
+
+6️⃣  Tapez et envoyez: /newbot
+
+7️⃣  BotFather demande: "Alright, a new bot. How are we going to call it?"
+    Répondez: Planning Medical Bot
+
+8️⃣  BotFather demande: "Now choose a username for your bot"
+    Répondez: planning_medical_sarra_bot
+    (DOIT finir par _bot)
+
+9️⃣  BotFather vous envoie un message avec votre TOKEN:
+
+    ┌──────────────────────────────────────────────────┐
+    │ Done! Congratulations on your new bot.           │
+    │                                                   │
+    │ Use this token to access the HTTP API:           │
+    │ 7891234567:AAEabcdefGHIjklmnoPQRstuvWXYZ         │ ← COPIEZ CE TOKEN !
+    │                                                   │
+    │ Keep your token secure and store it safely...    │
+    └──────────────────────────────────────────────────┘
+
+🔴 IMPORTANT: Copiez ce TOKEN et gardez-le !
+   (Appuyez dessus pour le sélectionner et copier)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 ÉTAPE 2: OBTENIR VOTRE CHAT ID (30 secondes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Toujours dans Telegram, cliquez sur la loupe 🔍
+
+2️⃣  Tapez: @userinfobot
+
+3️⃣  Cliquez sur @userinfobot dans les résultats
+
+4️⃣  Appuyez sur "START"
+
+5️⃣  Le bot vous envoie immédiatement vos informations:
+
+    ┌──────────────────────────────────────────────────┐
+    │ Id: 123456789                                     │ ← COPIEZ CE NUMÉRO !
+    │ First name: Sarra                                 │
+    │ Username: @votre_username                         │
+    │ Language: fr                                      │
+    └──────────────────────────────────────────────────┘
+
+🔴 IMPORTANT: Copiez UNIQUEMENT le numéro après "Id:"
+   (C'est votre CHAT_ID)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💾 ÉTAPE 3: SAUVEGARDER VOS IDENTIFIANTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Une fois que vous avez les 2 identifiants, notez-les ci-dessous:
+
+┌──────────────────────────────────────────────────────────┐
+│ MES IDENTIFIANTS TELEGRAM                                │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│ TELEGRAM_BOT_TOKEN=                                       │
+│ (Collez votre token ici)                                 │
+│                                                           │
+│ TELEGRAM_CHAT_ID=                                         │
+│ (Collez votre chat ID ici)                               │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️  ÉTAPE 4: CONFIGURATION DANS .ENV
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Ouvrez le fichier: .env
+    (Dans le dossier: C:\Users\MSI\Desktop\STAGE\projet-planning)
+
+2️⃣  Cherchez les lignes qui commencent par:
+    # TELEGRAM_BOT_TOKEN=
+    # TELEGRAM_CHAT_ID=
+
+3️⃣  Enlevez le # devant et collez vos valeurs:
+
+    AVANT:
+    # TELEGRAM_BOT_TOKEN=votre_token
+    # TELEGRAM_CHAT_ID=votre_chat_id
+
+    APRÈS:
+    TELEGRAM_BOT_TOKEN=7891234567:AAEabcdefGHIjklmnoPQRstuvWXYZ
+    TELEGRAM_CHAT_ID=123456789
+
+4️⃣  Sauvegardez le fichier (Ctrl+S)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 ÉTAPE 5: REDÉMARRER LE SERVEUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Fermez la fenêtre du serveur (terminal noir)
+    (Ou appuyez Ctrl+C dans le terminal)
+
+2️⃣  Dans VS Code, ouvrez un nouveau terminal PowerShell
+
+3️⃣  Tapez:
+    node server.js
+
+4️⃣  Vous devriez voir:
+    ✅ Telegram Bot configuré et prêt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧪 TESTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Ouvrez l'application: http://localhost:8081
+
+2️⃣  Connectez-vous comme admin
+
+3️⃣  Créez un utilisateur avec un NUMÉRO DE TÉLÉPHONE
+
+4️⃣  Sélectionnez "📱 SMS / Téléphone"
+
+5️⃣  Cliquez "Créer et envoyer le code"
+
+✅ Le code arrive sur Telegram immédiatement !
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❓ BESOIN D'AIDE ?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Si ça ne marche pas, vérifiez:
+  ❌ Le TOKEN ne contient pas d'espaces
+  ❌ Le CHAT_ID est juste un numéro (pas de lettres)
+  ❌ Vous avez bien enlevé le # devant les lignes
+  ❌ Vous avez redémarré le serveur après modification
+
+═══════════════════════════════════════════════════════════════
