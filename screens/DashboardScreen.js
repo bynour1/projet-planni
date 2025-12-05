@@ -1,6 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -8,9 +11,13 @@ import {
     View
 } from "react-native";
 import { usePlanning } from "../contexts/PlanningContext";
+import { useUser } from "../contexts/UserContext";
 
 export default function DashboardScreen() {
+  const router = useRouter();
+  const { user, setUser } = useUser();
   const { planning } = usePlanning();
+  const [sidebarVisible, setSidebarVisible] = useState(false);
   const [stats, setStats] = useState({
     totalEvents: 0,
     totalMedecins: 0,
@@ -22,6 +29,26 @@ export default function DashboardScreen() {
     weekdayDistribution: {},
   });
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Déconnexion',
+      'Voulez-vous vraiment vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Déconnexion',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('userToken');
+            await AsyncStorage.removeItem('userInfo');
+            setUser(null, null);
+            router.replace('/');
+          }
+        }
+      ]
+    );
+  };
 
   const calculateStats = useCallback(() => {
     setLoading(true);
@@ -139,11 +166,28 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>📊 Dashboard</Text>
-        <Text style={styles.headerSubtitle}>Vue d&apos;ensemble du planning</Text>
-      </View>
+    <>
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={() => setSidebarVisible(!sidebarVisible)}
+            >
+              <Text style={styles.menuIcon}>☰</Text>
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>📊 Dashboard</Text>
+              <Text style={styles.headerSubtitle}>Vue d&apos;ensemble du planning</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <Text style={styles.logoutIcon}>🚪</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
       {/* Statistics Cards */}
       <View style={styles.statsGrid}>
@@ -225,6 +269,102 @@ export default function DashboardScreen() {
         </View>
       </View>
     </ScrollView>
+
+    {/* Sidebar */}
+    {sidebarVisible && user && (
+      <View style={styles.sidebarOverlay}>
+        <TouchableOpacity
+          style={styles.sidebarBackdrop}
+          onPress={() => setSidebarVisible(false)}
+        />
+        <View style={styles.sidebar}>
+          <View style={styles.sidebarHeader}>
+            <Text style={styles.sidebarTitle}>Menu</Text>
+            <TouchableOpacity onPress={() => setSidebarVisible(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.sidebarContent}>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{user.prenom} {user.nom}</Text>
+              <Text style={styles.userRole}>
+                {user.role === 'admin' ? 'Administrateur' : user.role === 'medecin' ? 'Médecin' : 'Technicien'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.sidebarItem}
+              onPress={() => {
+                setSidebarVisible(false);
+                router.push('/dashboard');
+              }}
+            >
+              <Text style={styles.sidebarItemIcon}>📊</Text>
+              <Text style={styles.sidebarItemText}>Dashboard</Text>
+            </TouchableOpacity>
+
+            {user.role === 'admin' && (
+              <>
+                <TouchableOpacity
+                  style={styles.sidebarItem}
+                  onPress={() => {
+                    setSidebarVisible(false);
+                    router.push('/user-management');
+                  }}
+                >
+                  <Text style={styles.sidebarItemIcon}>👥</Text>
+                  <Text style={styles.sidebarItemText}>Gestion des utilisateurs</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.sidebarItem}
+                  onPress={() => {
+                    setSidebarVisible(false);
+                    router.push('/admin-planning');
+                  }}
+                >
+                  <Text style={styles.sidebarItemIcon}>📅</Text>
+                  <Text style={styles.sidebarItemText}>Gestion des plannings</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.sidebarItem}
+              onPress={() => {
+                setSidebarVisible(false);
+                const path = user.role === 'medecin' ? '/medecin' : user.role === 'technicien' ? '/technicien' : '/admin-planning';
+                router.push(path);
+              }}
+            >
+              <Text style={styles.sidebarItemIcon}>📋</Text>
+              <Text style={styles.sidebarItemText}>Mon Planning</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sidebarItem}
+              onPress={() => {
+                setSidebarVisible(false);
+                router.push('/chat');
+              }}
+            >
+              <Text style={styles.sidebarItemIcon}>💬</Text>
+              <Text style={styles.sidebarItemText}>Chat</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sidebarItem, styles.logoutItem]}
+              onPress={handleLogout}
+            >
+              <Text style={styles.sidebarItemIcon}>🚪</Text>
+              <Text style={[styles.sidebarItemText, styles.logoutText]}>Déconnexion</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    )}
+    </>
   );
 }
 
@@ -242,15 +382,37 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 40,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  menuButton: {
+    padding: 10,
+  },
+  menuIcon: {
+    fontSize: 24,
+    color: '#fff',
+  },
+  headerCenter: {
+    flex: 1,
+    marginHorizontal: 10,
+  },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#e3f2fd",
-    marginTop: 5,
+    marginTop: 2,
+  },
+  logoutButton: {
+    padding: 10,
+  },
+  logoutIcon: {
+    fontSize: 24,
   },
   loadingText: {
     marginTop: 10,
@@ -412,5 +574,86 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  sidebarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  sidebarBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sidebar: {
+    width: 280,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: -2, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 40,
+    backgroundColor: '#007bff',
+  },
+  sidebarTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  closeButton: {
+    fontSize: 24,
+    color: '#fff',
+  },
+  sidebarContent: {
+    flex: 1,
+    padding: 20,
+  },
+  userInfo: {
+    padding: 15,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  userRole: {
+    fontSize: 14,
+    color: '#666',
+  },
+  sidebarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    backgroundColor: '#f8f8f8',
+  },
+  sidebarItemIcon: {
+    fontSize: 20,
+    marginRight: 15,
+  },
+  sidebarItemText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  logoutItem: {
+    marginTop: 'auto',
+    backgroundColor: '#fee',
+  },
+  logoutText: {
+    color: '#d32f2f',
   },
 });

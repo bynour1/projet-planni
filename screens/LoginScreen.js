@@ -64,13 +64,8 @@ export default function LoginScreen() {
         }
         
         Alert.alert('Succès', `Bienvenue ${userObj.prenom} ${userObj.nom} !`);
-        // Redirect based on role
-        switch (userObj.role) {
-          case 'admin': router.replace('/admin'); break;
-          case 'medecin': router.replace('/medecin'); break;
-          case 'technicien': router.replace('/technicien'); break;
-          default: router.replace('/welcome');
-        }
+        // Redirect to dashboard for all users
+        router.replace('/dashboard');
       } else {
         Alert.alert('Erreur', j.message || 'Email ou mot de passe incorrect');
       }
