@@ -54,7 +54,7 @@ async function createAdminSarra() {
     console.log('   Rôle        : Administrateur');
     console.log('   Mot de passe: Sarra123.');
     console.log('─'.repeat(50));
-    console.log('\n🌐 Connexion : http://localhost:8081\n');
+    console.log('\n🌐 Connexion : http://localhost:8082\n');
 
   } catch (error) {
     console.error('❌ Erreur:', error.message);

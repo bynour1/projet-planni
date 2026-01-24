@@ -1,17 +1,20 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true,
-    "paths": {
-      "@/*": ["./*"]
-    },
-    "typeRoots": ["./node_modules/@types"]
+    "strict": false,
+    "noEmit": true,
+    "checkJs": false,
+    "allowJs": true,
+    "skipLibCheck": true
   },
+  "exclude": [
+    "node_modules",
+    "**/*.js",
+    "**/*.jsx"
+  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "**/*.js",
-    "**/*.jsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]

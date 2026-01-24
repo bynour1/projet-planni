@@ -1,39 +1,48 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
-    addMonths,
-    eachDayOfInterval,
-    endOfMonth,
-    endOfWeek,
-    format,
-    isSameMonth,
-    isToday,
-    startOfMonth,
-    startOfWeek
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek
 } from "date-fns";
 import { fr } from "date-fns/locale";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { usePlanning } from "../contexts/PlanningContext";
+import { useUser } from "../contexts/UserContext";
 
 const { width } = Dimensions.get("window");
 const dayWidth = (width - 40) / 7;
 
 export default function CalendarScreen() {
-  const { planning, addEvent, removeEvent } = usePlanning();
+  const { planning, addEvent, removeEvent, addComment } = usePlanning();
+  const { user } = useUser();
+  const isAdmin = user?.role === 'admin';
+  const canEdit = isAdmin;
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedEventIndex, setSelectedEventIndex] = useState(null);
   const [form, setForm] = useState({ medecin: "", technicien: "", adresse: "" });
+  const [commentForm, setCommentForm] = useState("");
 
   // Get calendar days for the current month
   const calendarDays = useMemo(() => {
@@ -61,32 +70,64 @@ export default function CalendarScreen() {
 
   // Handle add event
   const handleAddEvent = () => {
-    if (!form.medecin || !form.technicien || !form.adresse) return;
+    if (!form.medecin || !form.technicien || !form.adresse) {
+      Alert.alert("Erreur", "Veuillez remplir tous les champs");
+      return;
+    }
     const dayLabel = format(selectedDate, "EEEE dd/MM", { locale: fr });
-    addEvent(dayLabel, form);
+    addEvent(dayLabel, form.medecin, form.technicien, form.adresse, "", "");
     setForm({ medecin: "", technicien: "", adresse: "" });
     setModalVisible(false);
   };
 
   // Handle event click
-  const handleEventPress = (event, date) => {
+  const handleEventPress = (event, date, index) => {
     setSelectedEvent({ ...event, date });
+    setSelectedEventIndex(index);
+    setCommentForm(event.commentaire || "");
     setEventModalVisible(true);
   };
 
   // Handle delete event
   const handleDeleteEvent = () => {
-    const dayLabel = format(selectedEvent.date, "EEEE dd/MM", { locale: fr });
-    const events = planning[dayLabel] || [];
-    const index = events.findIndex((e) => 
-      e.medecin === selectedEvent.medecin && 
-      e.technicien === selectedEvent.technicien
+    if (!canEdit) return;
+    Alert.alert(
+      "Confirmer la suppression",
+      "Voulez-vous vraiment supprimer cet événement ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        { 
+          text: "Supprimer", 
+          style: "destructive", 
+          onPress: () => {
+            const dayLabel = format(selectedEvent.date, "EEEE dd/MM", { locale: fr });
+            const events = planning[dayLabel] || [];
+            const index = events.findIndex((e) => 
+              e.medecin === selectedEvent.medecin && 
+              e.technicien === selectedEvent.technicien
+            );
+            if (index !== -1) {
+              removeEvent(dayLabel, index);
+            }
+            setEventModalVisible(false);
+            setSelectedEvent(null);
+          }
+        }
+      ]
     );
-    if (index !== -1) {
-      removeEvent(dayLabel, index);
+  };
+
+  // Handle add comment
+  const handleAddComment = () => {
+    if (!commentForm.trim()) {
+      Alert.alert("Erreur", "Veuillez entrer un commentaire");
+      return;
     }
+    const dayLabel = format(selectedEvent.date, "EEEE dd/MM", { locale: fr });
+    addComment(dayLabel, selectedEventIndex, commentForm);
+    setSelectedEvent({ ...selectedEvent, commentaire: commentForm });
     setEventModalVisible(false);
-    setSelectedEvent(null);
+    Alert.alert("Succès", "Commentaire ajouté avec succès");
   };
 
   // Navigate months
@@ -101,7 +142,20 @@ export default function CalendarScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>📅 Calendrier</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>📅 Calendrier</Text>
+          {canEdit ? (
+            <View style={styles.adminBadge}>
+              <Ionicons name="shield-checkmark" size={16} color="#fff" />
+              <Text style={styles.adminBadgeText}>Admin</Text>
+            </View>
+          ) : (
+            <View style={styles.readOnlyBadge}>
+              <Ionicons name="eye" size={16} color="#fff" />
+              <Text style={styles.readOnlyBadgeText}>Lecture seule</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.headerMonth}>
           {format(currentMonth, "MMMM yyyy", { locale: fr })}
         </Text>
@@ -110,18 +164,18 @@ export default function CalendarScreen() {
       {/* Navigation */}
       <View style={styles.navigation}>
         <TouchableOpacity style={styles.navButton} onPress={goToPreviousMonth}>
-          <Text style={styles.navButtonText}>⬅️ Précédent</Text>
+          <Ionicons name="chevron-back" size={24} color="#007bff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.todayButton} onPress={goToToday}>
-          <Text style={styles.todayButtonText}>Aujourd&apos;hui</Text>
+          <Text style={styles.todayButtonText}>Aujourd'hui</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={goToNextMonth}>
-          <Text style={styles.navButtonText}>Suivant ➡️</Text>
+          <Ionicons name="chevron-forward" size={24} color="#007bff" />
         </TouchableOpacity>
       </View>
 
       {/* Calendar Grid */}
-      <ScrollView style={styles.calendarContainer}>
+      <ScrollView style={styles.calendarContainer} showsVerticalScrollIndicator={false}>
         {/* Day Names */}
         <View style={styles.weekRow}>
           {dayNames.map((day) => (
@@ -147,6 +201,7 @@ export default function CalendarScreen() {
                   isTodayDate && styles.todayCell,
                 ]}
                 onPress={() => handleDatePress(day)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -158,9 +213,9 @@ export default function CalendarScreen() {
                   {format(day, "d")}
                 </Text>
                 {events.length > 0 && (
-                  <View style={styles.eventDots}>
+                  <View style={styles.eventIndicators}>
                     {events.slice(0, 3).map((event, idx) => (
-                      <View key={idx} style={styles.eventDot} />
+                      <View key={idx} style={styles.eventIndicator} />
                     ))}
                     {events.length > 3 && (
                       <Text style={styles.moreEvents}>+{events.length - 3}</Text>
@@ -173,6 +228,24 @@ export default function CalendarScreen() {
         </View>
       </ScrollView>
 
+      {/* Legend */}
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: "#007bff" }]} />
+          <Text style={styles.legendText}>Aujourd'hui</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: "#28a745" }]} />
+          <Text style={styles.legendText}>Événements</Text>
+        </View>
+        {canEdit && (
+          <View style={styles.legendItem}>
+            <Ionicons name="create" size={16} color="#28a745" />
+            <Text style={styles.legendText}>Modifier</Text>
+          </View>
+        )}
+      </View>
+
       {/* Add Event Modal */}
       <Modal
         animationType="slide"
@@ -182,9 +255,20 @@ export default function CalendarScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              📅 {selectedDate && format(selectedDate, "EEEE dd MMMM yyyy", { locale: fr })}
-            </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                📅 {selectedDate && format(selectedDate, "EEEE dd MMMM yyyy", { locale: fr })}
+              </Text>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => {
+                  setModalVisible(false);
+                  setForm({ medecin: "", technicien: "", adresse: "" });
+                }}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
             {/* Existing Events */}
             {selectedDate && getEventsForDate(selectedDate).length > 0 && (
@@ -196,63 +280,101 @@ export default function CalendarScreen() {
                     style={styles.existingEvent}
                     onPress={() => {
                       setModalVisible(false);
-                      handleEventPress(event, selectedDate);
+                      handleEventPress(event, selectedDate, idx);
                     }}
                   >
-                    <Text style={styles.existingEventText}>
-                      👨‍⚕️ {event.medecin} • 👷 {event.technicien}
-                    </Text>
-                    <Text style={styles.existingEventAddress}>📍 {event.adresse}</Text>
+                    <View style={styles.existingEventHeader}>
+                      <Ionicons name="medical" size={18} color="#28a745" />
+                      <Text style={styles.existingEventText}>
+                        {event.medecin} • {event.technicien}
+                      </Text>
+                    </View>
+                    <View style={styles.existingEventRow}>
+                      <Ionicons name="location" size={14} color="#666" />
+                      <Text style={styles.existingEventAddress}>{event.adresse}</Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
             )}
 
-            {/* Add New Event Form */}
-            <Text style={styles.formTitle}>Ajouter un nouvel événement:</Text>
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Médecin"
-              value={form.medecin}
-              onChangeText={(text) => setForm({ ...form, medecin: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Technicien"
-              value={form.technicien}
-              onChangeText={(text) => setForm({ ...form, technicien: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Adresse"
-              value={form.adresse}
-              onChangeText={(text) => setForm({ ...form, adresse: text })}
-              multiline
-            />
+            {/* Add New Event Form - Admin Only */}
+            {canEdit ? (
+              <>
+                <Text style={styles.formTitle}>Ajouter un nouvel événement:</Text>
+                
+                <View style={styles.inputContainer}>
+                  <Ionicons name="person" size={20} color="#007bff" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Médecin"
+                    value={form.medecin}
+                    onChangeText={(text) => setForm({ ...form, medecin: text })}
+                  />
+                </View>
+                
+                <View style={styles.inputContainer}>
+                  <Ionicons name="construct" size={20} color="#007bff" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Technicien"
+                    value={form.technicien}
+                    onChangeText={(text) => setForm({ ...form, technicien: text })}
+                  />
+                </View>
+                
+                <View style={styles.inputContainer}>
+                  <Ionicons name="map" size={20} color="#007bff" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Adresse"
+                    value={form.adresse}
+                    onChangeText={(text) => setForm({ ...form, adresse: text })}
+                    multiline
+                  />
+                </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  setModalVisible(false);
-                  setForm({ medecin: "", technicien: "", adresse: "" });
-                }}
-              >
-                <Text style={styles.modalButtonText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.addButton]}
-                onPress={handleAddEvent}
-              >
-                <Text style={styles.modalButtonText}>Ajouter</Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => {
+                      setModalVisible(false);
+                      setForm({ medecin: "", technicien: "", adresse: "" });
+                    }}
+                  >
+                    <Ionicons name="close" size={18} color="#fff" />
+                    <Text style={styles.modalButtonText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.addButton]}
+                    onPress={handleAddEvent}
+                  >
+                    <Ionicons name="add" size={18} color="#fff" />
+                    <Text style={styles.modalButtonText}>Ajouter</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.readOnlyMessage}>
+                <Ionicons name="information-circle" size={48} color="#ffc107" />
+                <Text style={styles.readOnlyTitle}>Mode lecture seule</Text>
+                <Text style={styles.readOnlyText}>
+                  Seul l'administrateur peut ajouter ou modifier des événements. 
+                  Vous pouvez consulter les détails et ajouter des commentaires.
+                </Text>
+                <TouchableOpacity
+                  style={styles.closeModalButton}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.closeModalButtonText}>Fermer</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
 
-      {/* Event Details Modal */}
+      {/* Event Details Modal with Comments */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -261,60 +383,131 @@ export default function CalendarScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>📋 Détails de l&apos;événement</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📋 Détails de l'événement</Text>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => setEventModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
             
             {selectedEvent && (
-              <View style={styles.eventDetails}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>👨‍⚕️ Médecin:</Text>
-                  <Text style={styles.detailValue}>{selectedEvent.medecin}</Text>
+              <ScrollView style={styles.eventDetailsScroll} showsVerticalScrollIndicator={false}>
+                <View style={styles.eventDetails}>
+                  <View style={styles.detailCard}>
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons name="person" size={20} color="#007bff" />
+                      </View>
+                      <View style={styles.detailContent}>
+                        <Text style={styles.detailLabel}>Médecin</Text>
+                        <Text style={styles.detailValue}>{selectedEvent.medecin}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons name="construct" size={20} color="#28a745" />
+                      </View>
+                      <View style={styles.detailContent}>
+                        <Text style={styles.detailLabel}>Technicien</Text>
+                        <Text style={styles.detailValue}>{selectedEvent.technicien}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons name="location" size={20} color="#dc3545" />
+                      </View>
+                      <View style={styles.detailContent}>
+                        <Text style={styles.detailLabel}>Adresse</Text>
+                        <Text style={styles.detailValue}>{selectedEvent.adresse}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons name="calendar" size={20} color="#17a2b8" />
+                      </View>
+                      <View style={styles.detailContent}>
+                        <Text style={styles.detailLabel}>Date</Text>
+                        <Text style={styles.detailValue}>
+                          {selectedEvent.date && format(selectedEvent.date, "EEEE dd MMMM yyyy", { locale: fr })}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Comments Section */}
+                  <View style={styles.commentsSection}>
+                    <View style={styles.commentsHeader}>
+                      <Ionicons name="chatbubble-ellipses" size={20} color="#6c757d" />
+                      <Text style={styles.commentsTitle}>Commentaires</Text>
+                    </View>
+                    
+                    {selectedEvent.commentaire ? (
+                      <View style={styles.existingComment}>
+                        <Text style={styles.commentText}>{selectedEvent.commentaire}</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.noComment}>Aucun commentaire</Text>
+                    )}
+
+                    {/* Add Comment Form */}
+                    <View style={styles.addCommentForm}>
+                      <Text style={styles.addCommentTitle}>Ajouter un commentaire:</Text>
+                      <TextInput
+                        style={styles.commentInput}
+                        placeholder="Votre commentaire..."
+                        value={commentForm}
+                        onChangeText={setCommentForm}
+                        multiline
+                        numberOfLines={3}
+                      />
+                      <TouchableOpacity
+                        style={styles.addCommentButton}
+                        onPress={handleAddComment}
+                      >
+                        <Ionicons name="send" size={18} color="#fff" />
+                        <Text style={styles.addCommentButtonText}>Envoyer</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>👷 Technicien:</Text>
-                  <Text style={styles.detailValue}>{selectedEvent.technicien}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>📍 Adresse:</Text>
-                  <Text style={styles.detailValue}>{selectedEvent.adresse}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>📅 Date:</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedEvent.date && format(selectedEvent.date, "EEEE dd MMMM yyyy", { locale: fr })}
-                  </Text>
-                </View>
-              </View>
+              </ScrollView>
             )}
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setEventModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>Fermer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.deleteButton]}
-                onPress={handleDeleteEvent}
-              >
-                <Text style={styles.modalButtonText}>Supprimer</Text>
-              </TouchableOpacity>
+              {canEdit ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setEventModalVisible(false)}
+                  >
+                    <Text style={styles.modalButtonText}>Fermer</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.deleteButton]}
+                    onPress={handleDeleteEvent}
+                  >
+                    <Ionicons name="trash" size={18} color="#fff" />
+                    <Text style={styles.modalButtonText}>Supprimer</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setEventModalVisible(false)}
+                >
+                  <Text style={styles.modalButtonText}>Fermer</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
       </Modal>
-
-      {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#007bff" }]} />
-          <Text style={styles.legendText}>Aujourd&apos;hui</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#28a745" }]} />
-          <Text style={styles.legendText}>Événements</Text>
-        </View>
-      </View>
     </View>
   );
 }
@@ -328,40 +521,69 @@ const styles = StyleSheet.create({
     backgroundColor: "#007bff",
     padding: 20,
     paddingTop: 40,
+    paddingBottom: 15,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 5,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
+  },
+  adminBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  adminBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 5,
+  },
+  readOnlyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 193, 7, 0.8)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  readOnlyBadgeText: {
+    color: "#333",
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 5,
   },
   headerMonth: {
     fontSize: 18,
     color: "#e3f2fd",
-    marginTop: 5,
     textTransform: "capitalize",
   },
   navigation: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
   navButton: {
-    padding: 10,
-  },
-  navButtonText: {
-    fontSize: 14,
-    color: "#007bff",
-    fontWeight: "600",
+    padding: 5,
   },
   todayButton: {
     backgroundColor: "#007bff",
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 20,
   },
   todayButtonText: {
@@ -374,7 +596,7 @@ const styles = StyleSheet.create({
   },
   weekRow: {
     flexDirection: "row",
-    marginBottom: 10,
+    marginBottom: 5,
   },
   dayNameCell: {
     width: dayWidth,
@@ -382,7 +604,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   dayNameText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "bold",
     color: "#666",
   },
@@ -395,15 +617,15 @@ const styles = StyleSheet.create({
     height: dayWidth,
     backgroundColor: "#fff",
     margin: 2,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 5,
     justifyContent: "flex-start",
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   otherMonthDay: {
     backgroundColor: "#f5f5f5",
@@ -425,13 +647,13 @@ const styles = StyleSheet.create({
     color: "#007bff",
     fontWeight: "bold",
   },
-  eventDots: {
+  eventIndicators: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    marginTop: 5,
+    marginTop: 4,
   },
-  eventDot: {
+  eventIndicator: {
     width: 6,
     height: 6,
     borderRadius: 3,
@@ -442,6 +664,31 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#666",
     marginLeft: 2,
+    fontWeight: "600",
+  },
+  legend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 12,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 5,
+  },
+  legendText: {
+    fontSize: 12,
+    color: "#666",
   },
   modalOverlay: {
     flex: 1,
@@ -450,8 +697,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContent: {
-    width: "90%",
-    maxHeight: "80%",
+    width: "92%",
+    maxHeight: "85%",
     backgroundColor: "#fff",
     borderRadius: 20,
     padding: 20,
@@ -461,19 +708,28 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+  },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 15,
-    textAlign: "center",
     textTransform: "capitalize",
+    flex: 1,
+  },
+  closeButton: {
+    padding: 5,
   },
   existingEvents: {
-    marginBottom: 20,
+    marginBottom: 15,
+    maxHeight: 200,
   },
   existingEventsTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#666",
     marginBottom: 10,
@@ -486,15 +742,26 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#28a745",
   },
+  existingEventHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   existingEventText: {
     fontSize: 14,
     color: "#333",
     fontWeight: "600",
+    marginLeft: 8,
+  },
+  existingEventRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 26,
   },
   existingEventAddress: {
     fontSize: 12,
     color: "#666",
-    marginTop: 4,
+    marginLeft: 4,
   },
   formTitle: {
     fontSize: 16,
@@ -502,26 +769,37 @@ const styles = StyleSheet.create({
     color: "#666",
     marginBottom: 10,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 16,
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#f8f9fa",
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  inputIcon: {
+    paddingLeft: 12,
+  },
+  input: {
+    flex: 1,
+    padding: 12,
+    fontSize: 16,
+    color: "#333",
   },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 20,
+    marginTop: 15,
   },
   modalButton: {
     flex: 1,
-    padding: 15,
+    padding: 12,
     borderRadius: 10,
     marginHorizontal: 5,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
   },
   cancelButton: {
     backgroundColor: "#6c757d",
@@ -536,45 +814,141 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+    marginLeft: 5,
   },
-  eventDetails: {
-    marginVertical: 20,
+  readOnlyMessage: {
+    alignItems: "center",
+    padding: 20,
   },
-  detailRow: {
-    marginBottom: 15,
+  readOnlyTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 10,
   },
-  detailLabel: {
+  readOnlyText: {
     fontSize: 14,
     color: "#666",
-    fontWeight: "600",
-    marginBottom: 5,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 20,
+  },
+  closeModalButton: {
+    marginTop: 15,
+    backgroundColor: "#007bff",
+    paddingHorizontal: 30,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  closeModalButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  eventDetailsScroll: {
+    maxHeight: 400,
+  },
+  eventDetails: {
+    marginVertical: 10,
+  },
+  detailCard: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  detailIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  detailContent: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
   },
   detailValue: {
     fontSize: 16,
     color: "#333",
+    fontWeight: "600",
   },
-  legend: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 15,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+  commentsSection: {
+    marginTop: 10,
   },
-  legendItem: {
+  commentsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 15,
+    marginBottom: 10,
   },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 5,
+  commentsTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+    marginLeft: 8,
   },
-  legendText: {
-    fontSize: 12,
+  existingComment: {
+    backgroundColor: "#fff3cd",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: "#ffc107",
+  },
+  commentText: {
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 20,
+  },
+  noComment: {
+    fontSize: 14,
+    color: "#999",
+    fontStyle: "italic",
+    marginBottom: 10,
+  },
+  addCommentForm: {
+    marginTop: 10,
+  },
+  addCommentTitle: {
+    fontSize: 14,
+    fontWeight: "600",
     color: "#666",
+    marginBottom: 8,
+  },
+  commentInput: {
+    backgroundColor: "#f8f9fa",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: "top",
+    minHeight: 80,
+  },
+  addCommentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#007bff",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  addCommentButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 5,
   },
 });
+

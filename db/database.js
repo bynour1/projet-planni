@@ -227,11 +227,64 @@ module.exports = {
   
   // Update user password and clear mustChangePassword flag
   async updateUserPassword(contact, hashedPassword) {
-    await query('UPDATE users SET password = ?, mustChangePassword = 0 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
+    console.log('🔍 updateUserPassword appelé avec:', { contact, hashedPasswordLength: hashedPassword.length });
+    const result = await execute('UPDATE users SET password = ?, mustChangePassword = 0 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
+    console.log('🔍 updateUserPassword résultat:', result);
+    return result;
   },
   
   // Set provisional password (used when admin creates password for user)
   async setProvisionalPassword(contact, hashedPassword) {
     await query('UPDATE users SET password = ?, mustChangePassword = 1, isConfirmed = 1 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
+  },
+  
+  // ========== CLINO MOBILE ==========
+  async getClinoMobile() {
+    const rows = await query('SELECT * FROM clino_mobile ORDER BY date ASC, heure ASC');
+    return rows;
+  },
+  
+  async addClinoMobile({ date, heure, adresse, medecin, commentaire }) {
+    const result = await execute(
+      'INSERT INTO clino_mobile (date, heure, adresse, medecin, commentaire) VALUES (?, ?, ?, ?, ?)',
+      [date, heure, adresse, medecin, commentaire || null]
+    );
+    return result && result.insertId ? result.insertId : null;
+  },
+  
+  async updateClinoMobile(id, { date, heure, adresse, medecin, commentaire }) {
+    const result = await execute(
+      'UPDATE clino_mobile SET date = ?, heure = ?, adresse = ?, medecin = ?, commentaire = ? WHERE id = ?',
+      [date, heure, adresse, medecin, commentaire || null, id]
+    );
+    return result && result.affectedRows > 0;
+  },
+  
+  async deleteClinoMobile(id) {
+    const result = await execute('DELETE FROM clino_mobile WHERE id = ?', [id]);
+    return result && result.affectedRows > 0;
+  },
+
+  // ========== UPDATE & DELETE USERS ==========
+  async updateUser(userId, { nom, prenom, email, phone, role }) {
+    const updates = [];
+    const params = [];
+    
+    if (nom !== undefined) { updates.push('nom = ?'); params.push(nom); }
+    if (prenom !== undefined) { updates.push('prenom = ?'); params.push(prenom); }
+    if (phone !== undefined) { updates.push('phone = ?'); params.push(phone); }
+    if (role !== undefined) { updates.push('role = ?'); params.push(role); }
+    
+    if (updates.length === 0) return true;
+    
+    params.push(userId);
+    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+    const result = await execute(sql, params);
+    return result && result.affectedRows > 0;
+  },
+
+  async deleteUser(userId) {
+    const result = await execute('DELETE FROM users WHERE id = ?', [userId]);
+    return result && result.affectedRows > 0;
   }
 };

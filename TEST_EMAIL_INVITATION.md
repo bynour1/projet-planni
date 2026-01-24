@@ -33,7 +33,7 @@ node server.js
 Vous devriez voir :
 ```
 ✅ MySQL connecté: planning
-🚀 Serveur en cours d'exécution sur http://localhost:5000
+🚀 Serveur en cours d'exécution sur http://localhost:8082
 ```
 
 ---

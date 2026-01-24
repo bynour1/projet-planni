@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Header from "../components/Header";
 import { useChat } from "../contexts/ChatContext";
 import { useUser } from "../contexts/UserContext";
 
@@ -10,12 +11,18 @@ export default function ChatScreen() {
 
   const handleSend = () => {
     if (!text.trim()) return;
-    sendMessage(user.name, text);
+    // Utiliser prénom + nom si disponible, sinon fallback sur email
+    const displayName = user && user.prenom && user.nom
+      ? `${user.prenom} ${user.nom}`
+      : (user?.email || "Anonyme");
+    sendMessage(displayName, text);
     setText("");
   };
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <Header title="Chat" />
+      <View style={styles.container}>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id.toString()}
@@ -36,6 +43,7 @@ export default function ChatScreen() {
         <TouchableOpacity style={styles.button} onPress={handleSend}>
           <Text style={styles.buttonText}>Envoyer</Text>
         </TouchableOpacity>
+      </View>
       </View>
     </View>
   );

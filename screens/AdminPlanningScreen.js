@@ -1,9 +1,11 @@
 import { addDays, format, startOfWeek } from "date-fns";
 import React, { useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Header from "../components/Header";
 import { usePlanning } from "../contexts/PlanningContext";
 
 export default function AdminPlanningScreen() {
+    
   const { planning, addEvent } = usePlanning();
 
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -20,16 +22,18 @@ export default function AdminPlanningScreen() {
   };
 
   return (
-    <View style={{ flex: 1, padding: 20 }}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setCurrentWeek(addDays(currentWeek, -7))}>
-          <Text style={styles.navText}>⬅️ Précédente</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Semaine du {format(currentWeek, "dd/MM/yyyy")}</Text>
-        <TouchableOpacity onPress={() => setCurrentWeek(addDays(currentWeek, 7))}>
-          <Text style={styles.navText}>Suivante ➡️</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <Header title="Gestion des Plannings" />
+      <View style={{ flex: 1, padding: 20 }}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setCurrentWeek(addDays(currentWeek, -7))}>
+            <Text style={styles.navText}>⬅️ Précédente</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Semaine du {format(currentWeek, "dd/MM/yyyy")}</Text>
+          <TouchableOpacity onPress={() => setCurrentWeek(addDays(currentWeek, 7))}>
+            <Text style={styles.navText}>Suivante ➡️</Text>
+          </TouchableOpacity>
+        </View>
 
       <FlatList
         data={daysOfWeek}
@@ -96,9 +100,11 @@ export default function AdminPlanningScreen() {
           );
         }}
       />
+      </View>
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },

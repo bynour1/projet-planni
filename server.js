@@ -26,12 +26,22 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, { cors: { origin: '*' } });
-const PORT = process.env.PORT || 8001;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8082; // Port du serveur (respecte .env ou start-server.js)
 const JWT_SECRET = process.env.JWT_SECRET || 'votre_secret_jwt_changez_moi_en_production';
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+// Route de vérification simple pour le navigateur (GET)
+app.get('/', (req, res) => {
+  res.send('Planning server is running. Use POST /login to authenticate.');
+});
+
+// Fournir une réponse informative pour les requêtes GET /login (n'existe que pour debug)
+app.get('/login', (req, res) => {
+  res.status(200).send('Endpoint /login expects POST with { email, password }. Use the app or POST client.');
+});
 
 const db = require('./db/database');
 
@@ -375,6 +385,23 @@ app.delete('/planning/event', adminOnly, async (req, res) => {
   res.json({ success: true, planning });
 });
 
+// Add comment to event - Authenticated users (admin + others)
+app.post('/planning/comment', authenticateToken, async (req, res) => {
+  const { jour, index, commentaire } = req.body;
+  if (!jour || typeof index !== 'number' || !commentaire) {
+    return res.status(400).json({ success: false, message: 'Données manquantes' });
+  }
+  const planning = await db.getPlanning();
+  if (!planning[jour] || !planning[jour][index]) {
+    return res.status(404).json({ success: false, message: 'Événement non trouvé' });
+  }
+  // Add comment to the event
+  planning[jour][index].commentaire = commentaire;
+  await db.savePlanning(planning);
+  io.emit('planning:update', planning);
+  res.json({ success: true, planning });
+});
+
 // Route pour envoyer le code
 app.post('/send-code', async (req, res) => {
   // Accept either `contact` (email or phone) or `email` for compatibility
@@ -423,6 +450,11 @@ app.post('/send-code', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Erreur serveur lors de l\'envoi du code' });
   }
 });
+
+  // Health check endpoint to help debugging connectivity from frontend
+  app.get('/health', (req, res) => {
+    res.json({ success: true, status: 'ok', ts: Date.now() });
+  });
 
 // Admin: invite a user (create user entry without confirming) and send code
 // TODO: Ajouter authentification admin quand le frontend aura le token JWT
@@ -584,26 +616,48 @@ app.post('/events/:id/grant-edit', async (req, res) => {
   }
 });
 
-// Route pour vérifier le code
+// Route pour vérifier le code et créer un mot de passe (pour utilisateurs invités)
 app.post('/verify-code', async (req, res) => {
   // Accept either `contact` (email or phone) or `email` for compatibility
   const contact = req.body.contact || req.body.email || '';
-  const { code, provisionalPassword } = req.body;
+  const { code, provisionalPassword, newPassword } = req.body;
+  console.log('🔍 /verify-code appelé avec:', { contact, code, hasNewPassword: !!newPassword, hasProvisionalPassword: !!provisionalPassword });
+  
   if (!contact || !code) return res.status(400).json({ success: false, message: 'Données manquantes' });
 
   const saved = await db.getCode(contact);
+  console.log('🔍 Code enregistré:', saved);
+  
   if (saved && String(saved) === String(code)) {
     await db.deleteCode(contact);
+    console.log('✅ Code valide, supprimé');
     
+    // Si un nouveau mot de passe est fourni (par l'utilisateur), le hacher et confirmer le compte
+    if (newPassword) {
+      console.log('🔐 Création de mot de passe utilisateur...');
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caractères' });
+      }
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      console.log('🔐 Mot de passe haché:', hashedPassword.substring(0, 20) + '...');
+      
+      await db.updateUserPassword(contact, hashedPassword);
+      console.log('✅ updateUserPassword terminé');
+      
+      await db.confirmUser(contact);
+      console.log('✅ confirmUser terminé');
+      
+      return res.json({ success: true, message: 'Compte confirmé avec succès ! Vous pouvez maintenant vous connecter.' });
+    }
     // Si un mot de passe provisoire est fourni par l'admin, le hacher et le sauvegarder
-    if (provisionalPassword) {
+    else if (provisionalPassword) {
       const hashedPassword = await bcrypt.hash(provisionalPassword, 10);
       await db.setProvisionalPassword(contact, hashedPassword);
       return res.json({ success: true, message: 'Contact confirmé avec succès ! Mot de passe provisoire créé.' });
     } else {
       // Ancienne méthode: juste confirmer le contact sans créer de mot de passe
       await db.confirmUser(contact);
-      return res.json({ success: true, message: 'Contact confirmé avec succès !' });
+      return res.json({ success: true, message: 'Contact confirmé avec succès ! Veuillez créer un mot de passe.' });
     }
   }
 
@@ -758,33 +812,33 @@ app.post('/forgot-password', async (req, res) => {
 app.post('/reset-password', async (req, res) => {
   try {
     const { contact, code, newPassword } = req.body;
-    
+
     if (!contact || !code || !newPassword) {
       return res.status(400).json({ success: false, message: 'Contact, code et nouveau mot de passe requis' });
     }
-    
+
     if (newPassword.length < 6) {
       return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caractères' });
     }
-    
+
     // Vérifier le code
     const savedCode = await db.getCode(contact);
     if (!savedCode || savedCode !== String(code)) {
       return res.status(400).json({ success: false, message: 'Code incorrect ou expiré' });
     }
-    
+
     // Hasher le nouveau mot de passe
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
+
     // Mettre à jour le mot de passe
     await db.updateUserPassword(contact, hashedPassword);
-    
+
     // Supprimer le code utilisé
     await db.deleteCode(contact);
-    
-    return res.json({ 
-      success: true, 
-      message: 'Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter.' 
+
+    return res.json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter.'
     });
   } catch (error) {
     console.error('Error resetting password:', error);
@@ -792,12 +846,155 @@ app.post('/reset-password', async (req, res) => {
   }
 });
 
+// ============================================
+// CLINO MOBILE ROUTES
+// ============================================
+// GET - Récupérer toutes les interventions Clino Mobile (accessible à tous)
+app.get('/clino-mobile', authenticateToken, async (req, res) => {
+  try {
+    const data = await db.getClinoMobile();
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Erreur récupération clino-mobile:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST - Ajouter une intervention (ADMIN ONLY)
+app.post('/clino-mobile', adminOnly, async (req, res) => {
+  try {
+    const { date, heure, adresse, medecin, commentaire } = req.body;
+
+    if (!date || !heure || !adresse || !medecin) {
+      return res.status(400).json({ success: false, message: 'Date, heure, adresse et médecin requis' });
+    }
+
+    const id = await db.addClinoMobile({ date, heure, adresse, medecin, commentaire });
+    if (!id) {
+      return res.status(500).json({ success: false, message: 'Erreur lors de l\'ajout' });
+    }
+
+    // Rafraîchir et diffuser via Socket.io
+    const data = await db.getClinoMobile();
+    io.emit('clino-mobile:update', data);
+
+    res.json({ success: true, message: 'Intervention ajoutée', id, data });
+  } catch (err) {
+    console.error('Erreur ajout clino-mobile:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PUT - Modifier une intervention (ADMIN ONLY)
+app.put('/clino-mobile/:id', adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, heure, adresse, medecin, commentaire } = req.body;
+
+    if (!date || !heure || !adresse || !medecin) {
+      return res.status(400).json({ success: false, message: 'Date, heure, adresse et médecin requis' });
+    }
+
+    const updated = await db.updateClinoMobile(id, { date, heure, adresse, medecin, commentaire });
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Intervention non trouvée' });
+    }
+
+    // Rafraîchir et diffuser via Socket.io
+    const data = await db.getClinoMobile();
+    io.emit('clino-mobile:update', data);
+
+    res.json({ success: true, message: 'Intervention modifiée', data });
+  } catch (err) {
+    console.error('Erreur modification clino-mobile:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// DELETE - Supprimer une intervention (ADMIN ONLY)
+app.delete('/clino-mobile/:id', adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleted = await db.deleteClinoMobile(id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Intervention non trouvée' });
+    }
+
+    // Rafraîchir et diffuser via Socket.io
+    const data = await db.getClinoMobile();
+    io.emit('clino-mobile:update', data);
+
+    res.json({ success: true, message: 'Intervention supprimée', data });
+  } catch (err) {
+    console.error('Erreur suppression clino-mobile:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // Wait for DB initialization before starting server
 (async () => {
   await db.waitForInit();
   
-  server.listen(PORT, () => {
+  // Bind explicitly to 0.0.0.0 so the server is reachable from other network interfaces
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Serveur en cours d'exécution sur http://localhost:${PORT}`);
+    try {
+      const os = require('os');
+      const ifaces = os.networkInterfaces();
+      console.log('🔍 Adresses réseau disponibles:');
+      Object.keys(ifaces).forEach(name => {
+        ifaces[name].forEach(iface => {
+          if (!iface.internal) {
+            console.log(`   - ${name}: ${iface.address}`);
+          }
+        });
+      });
+    } catch (e) {
+      // ignore
+    }
+  });
+
+  // ===== PARTICIPANTS CRUD ENDPOINTS =====
+  // Update participant (admin only)
+  app.put('/update-user/:id', adminOnly, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id, 10);
+      const { nom, prenom, phone, role } = req.body;
+
+      if (!nom || !prenom) {
+        return res.status(400).json({ success: false, message: 'Nom et prénom requis' });
+      }
+
+      const updated = await db.updateUser(userId, { nom, prenom, phone, role });
+
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
+
+      res.json({ success: true, message: 'Participant modifié avec succès' });
+    } catch (err) {
+      console.error('[/update-user] Error:', err);
+      res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
+    }
+  });
+
+  // Delete participant (admin only)
+  app.delete('/delete-user/:id', adminOnly, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id, 10);
+
+      const deleted = await db.deleteUser(userId);
+
+      if (!deleted) {
+        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
+
+      res.json({ success: true, message: 'Participant supprimé avec succès' });
+    } catch (err) {
+      console.error('[/delete-user] Error:', err);
+      res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
+    }
   });
 
   io.on('connection', (socket) => {

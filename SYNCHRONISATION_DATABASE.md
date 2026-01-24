@@ -18,7 +18,7 @@ CREATE TABLE planning (
 ```
 
 ### 2. Serveur Backend
-Le serveur Node.js (`server.js`) est **en cours d'exécution** sur `http://localhost:5000` avec :
+Le serveur Node.js (`server.js`) est **en cours d'exécution** sur `http://localhost:8082` avec :
 
 ✅ **Routes Planning (Admin uniquement)** :
 - `GET /planning` - Récupère tout le planning depuis MySQL
@@ -61,7 +61,7 @@ Le serveur Node.js (`server.js`) est **en cours d'exécution** sur `http://local
 #### Pour l'Admin :
 1. L'admin ouvre `AdminPlanningScreen`
 2. Ajoute un événement avec : `medecin`, `technicien`, `adresse`
-3. `addEvent()` envoie une requête POST vers `http://localhost:5000/planning/event`
+3. `addEvent()` envoie une requête POST vers `http://localhost:8082/planning/event`
 4. Le serveur :
    - ✅ Sauvegarde dans MySQL (`db.savePlanning()`)
    - ✅ Émet `io.emit('planning:update', planning)` via Socket.io
@@ -77,25 +77,16 @@ Le serveur Node.js (`server.js`) est **en cours d'exécution** sur `http://local
 
 ### 5. Vérification du Code
 
-#### PlanningContext.js (lignes 1-50)
-```javascript
-const [planning, setPlanning] = useState({})
-
-useEffect(() => {
-  // Charge le planning initial depuis MySQL
-  fetch('http://localhost:5000/planning')
-    .then(res => res.json())
-    .then(data => setPlanning(data.planning))
-  
+Le serveur Node.js (`server.js`) est **en cours d'exécution** sur `http://localhost:8082` avec :
   // Écoute les mises à jour en temps réel
-  socketRef.current = io('http://localhost:5000')
+  socketRef.current = io('http://localhost:8082')
   socketRef.current.on('planning:update', (newPlanning) => {
     setPlanning(newPlanning)  // ✅ Mise à jour automatique
   })
 }, [])
-
+3. `addEvent()` envoie une requête POST vers `http://localhost:8082/planning/event`
 const addEvent = async (jour, event) => {
-  const res = await fetch('http://localhost:5000/planning/event', {
+  const res = await fetch('http://localhost:8082/planning/event', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jour, event })
@@ -104,7 +95,9 @@ const addEvent = async (jour, event) => {
   setPlanning(data.planning)  // ✅ Mise à jour locale
 }
 ```
+  fetch('http://localhost:8082/planning')
 
+  socketRef.current = io('http://localhost:8082')
 #### server.js (routes planning)
 ```javascript
 // Récupère depuis MySQL
@@ -112,6 +105,7 @@ app.get('/planning', authenticateToken, async (req, res) => {
   const planning = await db.getPlanning();  // ✅ Lit depuis MySQL
   res.json({ success: true, planning });
 });
+# Le serveur est déjà en cours d'exécution sur http://localhost:8082
 
 // Ajoute et diffuse
 app.post('/planning/event', adminOnly, async (req, res) => {
@@ -166,7 +160,7 @@ async savePlanning(obj) {
 
 ### Étape 1 : Serveur Backend
 ```bash
-# Le serveur est déjà en cours d'exécution sur http://localhost:5000
+# Le serveur est déjà en cours d'exécution sur http://localhost:8082
 # Vérifiez dans le terminal : "🚀 Serveur en cours d'exécution"
 ```
 
@@ -192,7 +186,7 @@ node -e "require('./db/database').waitForInit().then(() => require('./db/databas
 ## 🔧 Dépannage
 
 ### Si les modifications ne sont pas visibles :
-1. Vérifier que le serveur Node.js est actif : `http://localhost:5000`
+1. Vérifier que le serveur Node.js est actif : `http://localhost:8082`
 2. Vérifier la connexion MySQL dans `.env` (DB_HOST, DB_NAME)
 3. Vérifier la table : `mysql -u root planning -e "SELECT * FROM planning;"`
 4. Vérifier les logs Socket.io dans le terminal du serveur

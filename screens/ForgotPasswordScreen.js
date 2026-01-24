@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { API_BASE } from '../constants/api';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function ForgotPasswordScreen() {
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8001/forgot-password', {
+const response = await fetch(`${API_BASE}/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact: contact.trim() })
@@ -67,7 +68,7 @@ export default function ForgotPasswordScreen() {
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8001/reset-password', {
+const response = await fetch(`${API_BASE}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

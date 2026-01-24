@@ -58,19 +58,19 @@ Tous les utilisateurs peuvent se connecter :
 
 ### Admin
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/login" -Method POST -ContentType "application/json" -Body '{"email":"admin@hopital.com","password":"Admin123!"}'
+Invoke-RestMethod -Uri "http://localhost:8082/login" -Method POST -ContentType "application/json" -Body '{"email":"admin@hopital.com","password":"Admin123!"}'
 ```
 ✅ Role: admin
 
 ### Médecin
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/login" -Method POST -ContentType "application/json" -Body '{"email":"medecin@hopital.com","password":"Medecin123!"}'
+Invoke-RestMethod -Uri "http://localhost:8082/login" -Method POST -ContentType "application/json" -Body '{"email":"medecin@hopital.com","password":"Medecin123!"}'
 ```
 ✅ Role: medecin
 
 ### Technicien
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/login" -Method POST -ContentType "application/json" -Body '{"email":"technicien@hopital.com","password":"Technicien123!"}'
+Invoke-RestMethod -Uri "http://localhost:8082/login" -Method POST -ContentType "application/json" -Body '{"email":"technicien@hopital.com","password":"Technicien123!"}'
 ```
 ✅ Role: technicien
 

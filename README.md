@@ -16,6 +16,24 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Backend / API
+
+- Le serveur backend local écoute maintenant par défaut sur le port `8082`.
+- Pour changer l'URL utilisée par le frontend, définissez la variable d'environnement `API_BASE` (ex: `http://localhost:8082`).
+- Exemple (PowerShell):
+
+```powershell
+setx API_BASE "http://localhost:8082"
+```
+
+Ou, pour une session uniquement :
+
+```powershell
+$env:API_BASE = "http://localhost:8082"
+```
+
+Le frontend lit `API_BASE` depuis `globalThis` ou `process.env` et revient sur `http://localhost:8082` si non défini.
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

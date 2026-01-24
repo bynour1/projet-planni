@@ -1,34 +1,43 @@
 import { useRouter } from "expo-router";
+import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useUser } from "../contexts/UserContext";
 
 const AdminScreen = () => {
   const router = useRouter();
+  const { user } = useUser();
+
+  // Routes cohérentes pour chaque bouton
+  const handleNavigation = (route) => {
+    router.push(route.startsWith('/') ? route : `/${route}`);
+  };
+
   return (
     <View style={styles.container}>
+      {/* Sidebar provided globally in app/_layout.jsx */}
       <Text style={styles.title}>Page d&apos;Administration</Text>
 
       <View style={styles.buttonContainer}>
         {/* Bouton gestion utilisateurs */}
         <TouchableOpacity
           style={styles.button}
-          onPress={() => router.push("/user-management")}
+          onPress={() => handleNavigation("/user-management")}
         >
           <Text style={styles.buttonText}>Gérer les utilisateurs</Text>
         </TouchableOpacity>
 
         {/* Bouton gestion planning */}
-       <TouchableOpacity
-  style={styles.button}
-  onPress={() => router.push("/planning")}
->
-  <Text style={styles.buttonText}>Gérer les plannings</Text>
-</TouchableOpacity>
-
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => handleNavigation("/admin-planning")}
+        >
+          <Text style={styles.buttonText}>Gérer les plannings</Text>
+        </TouchableOpacity>
 
         {/* Bouton chat */}
         <TouchableOpacity
           style={styles.button}
-          onPress={() => router.push("/chat")}
+          onPress={() => handleNavigation("/chat")}
         >
           <Text style={styles.buttonText}>Chat 💬</Text>
         </TouchableOpacity>
@@ -36,7 +45,7 @@ const AdminScreen = () => {
         {/* Bouton déconnexion */}
         <TouchableOpacity
           style={[styles.button, { backgroundColor: "red" }]}
-          onPress={() => router.push("/welcome")}
+          onPress={() => handleNavigation("/welcome")}
         >
           <Text style={styles.buttonText}>Déconnexion</Text>
         </TouchableOpacity>
@@ -75,3 +84,4 @@ const styles = StyleSheet.create({
 });
 
 export default AdminScreen;
+

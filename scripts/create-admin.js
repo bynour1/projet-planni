@@ -88,7 +88,7 @@ async function createAdmin() {
     console.log('\n🔐 Connexion :');
     console.log(`   Email    : ${email}`);
     console.log(`   Mot de passe : [celui que vous avez saisi]`);
-    console.log('\n🌐 URL de connexion : http://localhost:8081/login\n');
+    console.log('\n🌐 URL de connexion : http://localhost:8082/login\n');
 
   } catch (error) {
     console.error('\n❌ Erreur lors de la création du compte :', error.message);

@@ -1,15 +1,16 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useContext, useRef } from 'react';
 import { Animated, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Sidebar from '../components/Sidebar';
+import { AuthContext } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import boxShadow from '../utils/boxShadow';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const { userRole } = useContext(AuthContext);
   
   const MenuButton = ({ icon, title, subtitle, onPress, color = '#007AFF', badge = null }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -61,6 +62,7 @@ export default function WelcomeScreen() {
   };
 
   return (
+
     <>
       <ScrollView style={styles(theme).container} showsVerticalScrollIndicator={false}>
         <LinearGradient
@@ -74,7 +76,6 @@ export default function WelcomeScreen() {
               if (Platform.OS === 'ios') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               }
-              setSidebarVisible(true);
             }}
             style={styles(theme).menuIconButton}
           >
@@ -91,7 +92,7 @@ export default function WelcomeScreen() {
 
         <View style={styles(theme).section}>
           <Text style={styles(theme).sectionTitle}>📊 Tableaux de Bord</Text>
-        
+
           <MenuButton
             icon="📢"
             title="Annonces"
@@ -99,99 +100,123 @@ export default function WelcomeScreen() {
             onPress={() => router.push('/announcements')}
             color="#ff6b6b"
             badge={3}
+            accessibilityLabel="Voir les annonces importantes"
           />
-        
-        <MenuButton
-          icon="📊"
-          title="Dashboard"
-          subtitle="Statistiques et vue d'ensemble"
-          onPress={() => router.push('/dashboard')}
-          color="#007bff"
-        />
 
-        <MenuButton
-          icon="📅"
-          title="Calendrier"
-          subtitle="Vue mensuelle interactive"
-          onPress={() => router.push('/calendar')}
-          color="#28a745"
-          badge={7}
-        />
+          <MenuButton
+            icon="📊"
+            title="Dashboard"
+            subtitle="Statistiques et vue d'ensemble"
+            onPress={() => router.push('/dashboard')}
+            color="#007bff"
+            accessibilityLabel="Accéder au dashboard"
+          />
 
-        <MenuButton
-          icon="📋"
-          title="Planning Hebdomadaire"
-          subtitle="Gestion détaillée de la semaine"
-          onPress={() => router.push('/planning')}
-          color="#ffc107"
-        />
-      </View>
+          <MenuButton
+            icon="📅"
+            title="Calendrier"
+            subtitle="Vue mensuelle interactive"
+            onPress={() => router.push('/calendar')}
+            color="#28a745"
+            badge={7}
+            accessibilityLabel="Voir le calendrier mensuel"
+          />
 
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>⏰ Routines & Horaires</Text>
+          <MenuButton
+            icon="🗓️"
+            title="Mon Planning"
+            subtitle="Vue calendrier personnelle"
+            onPress={() => router.push('/mon-planning')}
+            color="#00bcd4"
+            accessibilityLabel="Voir mon planning personnel"
+          />
 
-        <MenuButton
-          icon="⏰"
-          title="Routines"
-          subtitle="Créer des routines récurrentes"
-          onPress={() => router.push('/routine')}
-          color="#9b59b6"
-        />
+          <MenuButton
+            icon="📋"
+            title="Planning Hebdomadaire"
+            subtitle="Gestion détaillée de la semaine"
+            onPress={() => router.push('/planning')}
+            color="#ffc107"
+            accessibilityLabel="Voir le planning hebdomadaire"
+          />
+        </View>
 
-        <MenuButton
-          icon="📆"
-          title="Horaires"
-          subtitle="Planifier vos événements"
-          onPress={() => router.push('/schedule')}
-          color="#e74c3c"
-        />
-      </View>
+      {userRole === 'admin' && (
+        <>
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionTitle}>⏰ Routines & Horaires</Text>
 
-      <View style={styles(theme).section}>
-        <Text style={styles(theme).sectionTitle}>👥 Accès Rapide</Text>
+            <MenuButton
+              icon="⏰"
+              title="Routines"
+              subtitle="Créer des routines récurrentes"
+              onPress={() => router.push('/routine')}
+              color="#9b59b6"
+              accessibilityLabel="Créer ou voir les routines"
+            />
 
-        <MenuButton
-          icon="👨‍⚕️"
-          title="Médecin"
-          subtitle="Espace médecin"
-          onPress={() => router.push('/medecin')}
-          color="#17a2b8"
-        />
+            <MenuButton
+              icon="📆"
+              title="Horaires"
+              subtitle="Planifier vos événements"
+              onPress={() => router.push('/schedule')}
+              color="#e74c3c"
+              accessibilityLabel="Planifier vos horaires"
+            />
+          </View>
 
-        <MenuButton
-          icon="👷"
-          title="Technicien"
-          subtitle="Espace technicien"
-          onPress={() => router.push('/technicien')}
-          color="#6610f2"
-        />
+          <View style={styles(theme).section}>
+            <Text style={styles(theme).sectionTitle}>👥 Accès Rapide</Text>
 
-        <MenuButton
-          icon="💬"
-          title="Chat"
-          subtitle="Messagerie instantanée"
-          onPress={() => router.push('/chat')}
-          color="#20c997"
-          badge={12}
-        />
+            <MenuButton
+              icon="👨‍⚕️"
+              title="Médecin"
+              subtitle="Espace médecin"
+              onPress={() => router.push('/medecin')}
+              color="#17a2b8"
+              accessibilityLabel="Accéder à l'espace médecin"
+            />
 
-        <MenuButton
-          icon="⚙️"
-          title="Paramètres"
-          subtitle="Thème et configuration"
-          onPress={() => router.push('/settings')}
-          color="#fd7e14"
-        />
+            <MenuButton
+              icon="👷"
+              title="Technicien"
+              subtitle="Espace technicien"
+              onPress={() => router.push('/technicien')}
+              color="#6610f2"
+              accessibilityLabel="Accéder à l'espace technicien"
+            />
 
-        <MenuButton
-          icon="🔧"
-          title="Administration"
-          subtitle="Gestion système"
-          onPress={() => router.push('/admin')}
-          color="#dc3545"
-          badge={2}
-        />
-      </View>
+            <MenuButton
+              icon="💬"
+              title="Chat"
+              subtitle="Messagerie instantanée"
+              onPress={() => router.push('/chat')}
+              color="#20c997"
+              badge={12}
+              accessibilityLabel="Ouvrir la messagerie instantanée"
+            />
+
+            <MenuButton
+              icon="⚙️"
+              title="Paramètres"
+              subtitle="Thème et configuration"
+              onPress={() => router.push('/settings')}
+              color="#fd7e14"
+              accessibilityLabel="Accéder aux paramètres"
+            />
+
+            <MenuButton
+              icon="🔧"
+              title="Administration"
+              subtitle="Gestion système"
+              onPress={() => router.push('/admin')}
+              color="#dc3545"
+              badge={2}
+              accessibilityLabel="Accéder à l'administration"
+            />
+          </View>
+        </>
+      )}
 
         <View style={styles(theme).footer}>
           <Text style={styles(theme).footerText}>Version 2.0 • Mode {theme.isDark ? 'Sombre' : 'Clair'}</Text>
@@ -199,7 +224,7 @@ export default function WelcomeScreen() {
         </View>
       </ScrollView>
 
-      <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} />
+      {/* Sidebar is provided globally in app/_layout.jsx */}
     </>
   );
 }
@@ -268,6 +293,7 @@ const styles = (theme) => StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
+    boxShadow: boxShadow(theme.shadow, 4, 8, 0.15),
   },
   iconContainer: {
     position: 'relative',

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
     Alert,
     ScrollView,
@@ -19,6 +20,27 @@ export default function LoginScreen() {
   const { setUser } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  // Déterminer dynamiquement l'URL de l'API en dev (évite localhost sur appareil)
+  const getApiBase = () => {
+    // En mode web, utiliser le même hostname que le navigateur et port backend 8082
+    // (permet d'utiliser localhost, 127.0.0.1 ou l'IP LAN automatiquement)
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      return `${window.location.protocol}//${window.location.hostname}:8082`;
+    }
+    try {
+      const manifest = Constants.manifest || Constants.expoConfig || {};
+      // debuggerHost ou hostUri contient souvent "192.168.x.x:port"
+      const host = (manifest.debuggerHost || manifest.hostUri || process.env.API_HOST || '').split(':')[0];
+      if (host) return `http://${host}:8082`;
+    } catch (e) {
+      // ignore
+    }
+    return 'http://127.0.0.1:8082';
+  };
+  const API_BASE = getApiBase();
+  console.log('[LoginScreen] API_BASE =', API_BASE, 'hostname =', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
 
   // Thème clair fixe
   const theme = {
@@ -26,28 +48,36 @@ export default function LoginScreen() {
     card: '#ffffff',
     text: '#000000',
     textSecondary: '#666666',
-    border: '#dddddd',
+    border: '#dddddd'
   };
 
   const handleLogin = async () => {
-    if (!email || !password) return Alert.alert('Erreur', 'Veuillez remplir tous les champs');
-
+    setError('');
+    if (!email || !password) {
+      setError('Veuillez remplir tous les champs');
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+      return;
+    }
     try {
-      const resp = await fetch('http://localhost:8001/login', {
+      console.log('[LoginScreen] Tentative de connexion avec', email);
+      const resp = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        console.error('[LoginScreen] /login non-ok', resp.status, text);
+        setError(`Erreur serveur: ${resp.status} ${resp.statusText}\n${text}`);
+        Alert.alert('Erreur', `Serveur: ${resp.status} ${resp.statusText} \n${text}`);
+        return;
+      }
       const j = await resp.json();
       if (j && j.success && j.token) {
         const userObj = j.user;
-        // Save token and user
-        // Save token+user via context helper
         await AsyncStorage.setItem('userToken', j.token);
         await AsyncStorage.setItem('userInfo', JSON.stringify(userObj));
         setUser(userObj, j.token);
-        
-        // Vérifier si l'utilisateur doit changer son mot de passe
         if (userObj.mustChangePassword) {
           Alert.alert(
             'Changement de mot de passe requis',
@@ -62,44 +92,38 @@ export default function LoginScreen() {
           );
           return;
         }
-        
         Alert.alert('Succès', `Bienvenue ${userObj.prenom} ${userObj.nom} !`);
-        // Redirect to dashboard for all users
-        router.replace('/dashboard');
+        // Redirect based on role
+        if (userObj.role === 'admin') {
+          router.replace('/admin-dashboard');
+        } else {
+          router.replace('/participant-dashboard');
+        }
       } else {
+        setError(j.message || 'Email ou mot de passe incorrect');
         Alert.alert('Erreur', j.message || 'Email ou mot de passe incorrect');
       }
     } catch (err) {
       console.error('Login error', err);
-      Alert.alert('Erreur', 'Impossible de contacter le serveur');
-    }
-  };
-
-  const quickLogin = async (userEmail) => {
-    // Quick login using known test accounts created by server script
-    const known = {
-      'admin@planning.com': { email: 'admin@hopital.com', password: 'Admin123!' },
-      'medecin@planning.com': { email: 'medecin@hopital.com', password: 'Medecin123!' },
-      'technicien@planning.com': { email: 'technicien@hopital.com', password: 'Technicien123!' },
-    };
-    const creds = known[userEmail];
-    if (creds) {
-      setEmail(creds.email);
-      setPassword(creds.password);
-      // Optionally auto-submit
-      setTimeout(() => handleLogin(), 300);
+      setError(`Impossible de contacter le serveur (${API_BASE})`);
+      Alert.alert('Erreur', `Impossible de contacter le serveur (${API_BASE})`);
     }
   };
 
   return (
     <ScrollView style={styles(theme).container} contentContainerStyle={styles(theme).contentContainer}>
       <View style={styles(theme).header}>
-        <Text style={styles(theme).icon}>🏥</Text>
+        <Text style={styles(theme).logoPlaceholder}>🏥</Text>
         <Text style={styles(theme).title}>Planning Médical</Text>
         <Text style={styles(theme).subtitle}>Gestion professionnelle de planning</Text>
       </View>
 
       <View style={styles(theme).form}>
+        {error ? (
+          <View style={{ backgroundColor: '#ffdddd', padding: 10, borderRadius: 8, marginBottom: 10 }}>
+            <Text style={{ color: '#b00020', fontWeight: 'bold', textAlign: 'center' }}>{error}</Text>
+          </View>
+        ) : null}
         <TextInput
           style={styles(theme).input}
           placeholder="Email ou téléphone"
@@ -136,48 +160,10 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles(theme).quickLoginSection}>
-        <Text style={styles(theme).quickLoginTitle}>🚀 Connexion rapide (Test)</Text>
-        
-        <TouchableOpacity 
-          style={[styles(theme).quickLoginButton, { backgroundColor: '#dc3545' }]}
-          onPress={() => quickLogin('admin@planning.com')}
-        >
-          <Text style={styles(theme).quickLoginIcon}>👤</Text>
-          <View style={styles(theme).quickLoginContent}>
-            <Text style={styles(theme).quickLoginRole}>Admin</Text>
-            <Text style={styles(theme).quickLoginEmail}>admin@planning.com</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles(theme).quickLoginButton, { backgroundColor: '#007bff' }]}
-          onPress={() => quickLogin('medecin@planning.com')}
-        >
-          <Text style={styles(theme).quickLoginIcon}>👨‍⚕️</Text>
-          <View style={styles(theme).quickLoginContent}>
-            <Text style={styles(theme).quickLoginRole}>Médecin</Text>
-            <Text style={styles(theme).quickLoginEmail}>medecin@planning.com</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles(theme).quickLoginButton, { backgroundColor: '#28a745' }]}
-          onPress={() => quickLogin('technicien@planning.com')}
-        >
-          <Text style={styles(theme).quickLoginIcon}>🔧</Text>
-          <View style={styles(theme).quickLoginContent}>
-            <Text style={styles(theme).quickLoginRole}>Technicien</Text>
-            <Text style={styles(theme).quickLoginEmail}>technicien@planning.com</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
       <View style={styles(theme).infoSection}>
-        <Text style={styles(theme).infoTitle}>📋 Comptes de test disponibles :</Text>
-        <Text style={styles(theme).infoText}>• Admin : admin@planning.com / admin123</Text>
-        <Text style={styles(theme).infoText}>• Médecin : medecin@planning.com / medecin123</Text>
-        <Text style={styles(theme).infoText}>• Technicien : technicien@planning.com / technicien123</Text>
+        <Text style={styles(theme).infoTitle}>ℹ️ Première connexion</Text>
+        <Text style={styles(theme).infoText}>Utilisez les identifiants fournis par votre administrateur.</Text>
+        <Text style={styles(theme).infoText}>Si vous n'avez pas encore de compte, contactez l'administrateur.</Text>
       </View>
     </ScrollView>
   );
@@ -210,6 +196,17 @@ const styles = (theme) => StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: theme.textSecondary,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 10,
+    borderRadius: 8,
+    resizeMode: 'contain'
+  },
+  logoPlaceholder: {
+    fontSize: 80,
+    marginBottom: 20,
   },
   form: {
     marginBottom: 30,
@@ -257,36 +254,13 @@ const styles = (theme) => StyleSheet.create({
     marginBottom: 15,
     textAlign: 'center',
   },
-  quickLoginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  quickLoginIcon: {
-    fontSize: 32,
-    marginRight: 15,
-  },
-  quickLoginContent: {
-    flex: 1,
-  },
-  quickLoginRole: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 3,
-  },
-  quickLoginEmail: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
   infoSection: {
     backgroundColor: theme.card,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.border,
+    marginTop: 20,
   },
   infoTitle: {
     fontSize: 16,
@@ -301,3 +275,4 @@ const styles = (theme) => StyleSheet.create({
     lineHeight: 20,
   },
 });
+

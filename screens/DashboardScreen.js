@@ -1,23 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
-} from "react-native";
-import { usePlanning } from "../contexts/PlanningContext";
-import { useUser } from "../contexts/UserContext";
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { usePlanning } from '../contexts/PlanningContext';
+import { useUser } from '../contexts/UserContext';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, setUser } = useUser();
   const { planning } = usePlanning();
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+
   const [stats, setStats] = useState({
     totalEvents: 0,
     totalMedecins: 0,
@@ -31,27 +31,29 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Déconnexion',
-      'Voulez-vous vraiment vous déconnecter ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Déconnexion',
-          style: 'destructive',
-          onPress: async () => {
+    Alert.alert('Déconnexion', 'Voulez-vous vraiment vous déconnecter ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Déconnexion',
+        style: 'destructive',
+        onPress: async () => {
+          try {
             await AsyncStorage.removeItem('userToken');
             await AsyncStorage.removeItem('userInfo');
             setUser(null, null);
             router.replace('/');
+          } catch (error) {
+            console.error('Erreur lors de la déconnexion:', error);
+            Alert.alert('Erreur', 'Impossible de se déconnecter');
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
   const calculateStats = useCallback(() => {
     setLoading(true);
+
     const medecinCount = {};
     const technicienCount = {};
     const weekdayDist = {
@@ -68,31 +70,26 @@ export default function DashboardScreen() {
     let thisWeek = 0;
     let thisMonth = 0;
 
-    Object.entries(planning).forEach(([day, events]) => {
+    Object.entries(planning || {}).forEach(([day, events]) => {
       if (!events || events.length === 0) return;
 
       total += events.length;
 
-      // Extract day name
-      const dayName = day.split(" ")[0];
+      const dayName = day.split(' ')[0];
       if (weekdayDist[dayName] !== undefined) {
         weekdayDist[dayName] += events.length;
       }
 
       events.forEach((event) => {
-        // Count by medecin
         if (event.medecin) {
           medecinCount[event.medecin] = (medecinCount[event.medecin] || 0) + 1;
         }
-
-        // Count by technicien
         if (event.technicien) {
           technicienCount[event.technicien] = (technicienCount[event.technicien] || 0) + 1;
         }
       });
 
-      // Count this week and this month (simplified)
-      thisWeek += events.length; // You can improve this with date parsing
+      thisWeek += events.length;
       thisMonth += events.length;
     });
 
@@ -116,6 +113,7 @@ export default function DashboardScreen() {
       technicienStats,
       weekdayDistribution: weekdayDist,
     });
+
     setLoading(false);
   }, [planning]);
 
@@ -142,12 +140,7 @@ export default function DashboardScreen() {
           <View key={index} style={styles.barRow}>
             <Text style={styles.barLabel}>{item.name}</Text>
             <View style={styles.barWrapper}>
-              <View
-                style={[
-                  styles.bar,
-                  { width: `${(item.count / maxValue) * 100}%` },
-                ]}
-              />
+              <View style={[styles.bar, { width: `${(item.count / maxValue) * 100}%` }]} />
               <Text style={styles.barValue}>{item.count}</Text>
             </View>
           </View>
@@ -170,204 +163,84 @@ export default function DashboardScreen() {
       <ScrollView style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <TouchableOpacity
-              style={styles.menuButton}
-              onPress={() => setSidebarVisible(!sidebarVisible)}
-            >
+            <TouchableOpacity style={styles.menuButton} onPress={() => {}}>
               <Text style={styles.menuIcon}>☰</Text>
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>📊 Dashboard</Text>
               <Text style={styles.headerSubtitle}>Vue d&apos;ensemble du planning</Text>
             </View>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutIcon}>🚪</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-      {/* Statistics Cards */}
-      <View style={styles.statsGrid}>
-        <StatCard
-          title="Total Événements"
-          value={stats.totalEvents}
-          color="#007bff"
-          icon="📅"
-        />
-        <StatCard
-          title="Médecins"
-          value={stats.totalMedecins}
-          color="#28a745"
-          icon="👨‍⚕️"
-        />
-        <StatCard
-          title="Techniciens"
-          value={stats.totalTechniciens}
-          color="#ffc107"
-          icon="👷"
-        />
-        <StatCard
-          title="Cette Semaine"
-          value={stats.eventsThisWeek}
-          color="#17a2b8"
-          icon="📆"
-        />
-      </View>
-
-      {/* Distribution by Weekday */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📈 Distribution par Jour</Text>
-        <View style={styles.weekdayContainer}>
-          {Object.entries(stats.weekdayDistribution).map(([day, count]) => (
-            <View key={day} style={styles.weekdayCard}>
-              <Text style={styles.weekdayName}>{day.substring(0, 3)}</Text>
-              <View
-                style={[
-                  styles.weekdayBar,
-                  { height: Math.max((count / stats.totalEvents) * 100, 5) },
-                ]}
-              />
-              <Text style={styles.weekdayCount}>{count}</Text>
-            </View>
-          ))}
+        <View style={styles.statsGrid}>
+          <StatCard title="Total Événements" value={stats.totalEvents} color="#007bff" icon="📅" />
+          <StatCard title="Médecins" value={stats.totalMedecins} color="#28a745" icon="👨‍⚕️" />
+          <StatCard title="Techniciens" value={stats.totalTechniciens} color="#ffc107" icon="👷" />
+          <StatCard title="Cette Semaine" value={stats.eventsThisWeek} color="#17a2b8" icon="📆" />
         </View>
-      </View>
 
-      {/* Top Medecins */}
-      {stats.medecinStats.length > 0 && (
-        <BarChart data={stats.medecinStats} title="🏆 Top Médecins" />
-      )}
-
-      {/* Top Techniciens */}
-      {stats.technicienStats.length > 0 && (
-        <BarChart data={stats.technicienStats} title="🏆 Top Techniciens" />
-      )}
-
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🚀 Actions Rapides</Text>
-        <View style={styles.actionsGrid}>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#007bff" }]}>
-            <Text style={styles.actionIcon}>➕</Text>
-            <Text style={styles.actionText}>Nouvel Événement</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#28a745" }]}>
-            <Text style={styles.actionIcon}>📋</Text>
-            <Text style={styles.actionText}>Voir Planning</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#ffc107" }]}>
-            <Text style={styles.actionIcon}>📊</Text>
-            <Text style={styles.actionText}>Rapports</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: "#dc3545" }]}>
-            <Text style={styles.actionIcon}>⚙️</Text>
-            <Text style={styles.actionText}>Paramètres</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
-
-    {/* Sidebar */}
-    {sidebarVisible && user && (
-      <View style={styles.sidebarOverlay}>
-        <TouchableOpacity
-          style={styles.sidebarBackdrop}
-          onPress={() => setSidebarVisible(false)}
-        />
-        <View style={styles.sidebar}>
-          <View style={styles.sidebarHeader}>
-            <Text style={styles.sidebarTitle}>Menu</Text>
-            <TouchableOpacity onPress={() => setSidebarVisible(false)}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📈 Distribution par Jour</Text>
+          <View style={styles.weekdayContainer}>
+            {Object.entries(stats.weekdayDistribution).map(([day, count]) => (
+              <View key={day} style={styles.weekdayCard}>
+                <Text style={styles.weekdayName}>{day.substring(0, 3)}</Text>
+                <View style={[styles.weekdayBar, { height: Math.max((count / (stats.totalEvents || 1)) * 100, 5) }]} />
+                <Text style={styles.weekdayCount}>{count}</Text>
+              </View>
+            ))}
           </View>
+        </View>
 
-          <View style={styles.sidebarContent}>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user.prenom} {user.nom}</Text>
-              <Text style={styles.userRole}>
-                {user.role === 'admin' ? 'Administrateur' : user.role === 'medecin' ? 'Médecin' : 'Technicien'}
-              </Text>
-            </View>
+        {stats.medecinStats.length > 0 && <BarChart data={stats.medecinStats} title="🏆 Top Médecins" />}
+        {stats.technicienStats.length > 0 && <BarChart data={stats.technicienStats} title="🏆 Top Techniciens" />}
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🚀 Actions Rapides</Text>
+          <View style={styles.actionsGrid}>
             <TouchableOpacity
-              style={styles.sidebarItem}
+              style={[styles.actionButton, { backgroundColor: '#007bff' }]}
               onPress={() => {
-                setSidebarVisible(false);
-                router.push('/dashboard');
-              }}
-            >
-              <Text style={styles.sidebarItemIcon}>📊</Text>
-              <Text style={styles.sidebarItemText}>Dashboard</Text>
-            </TouchableOpacity>
-
-            {user.role === 'admin' && (
-              <>
-                <TouchableOpacity
-                  style={styles.sidebarItem}
-                  onPress={() => {
-                    setSidebarVisible(false);
-                    router.push('/user-management');
-                  }}
-                >
-                  <Text style={styles.sidebarItemIcon}>👥</Text>
-                  <Text style={styles.sidebarItemText}>Gestion des utilisateurs</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.sidebarItem}
-                  onPress={() => {
-                    setSidebarVisible(false);
-                    router.push('/admin-planning');
-                  }}
-                >
-                  <Text style={styles.sidebarItemIcon}>📅</Text>
-                  <Text style={styles.sidebarItemText}>Gestion des plannings</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            <TouchableOpacity
-              style={styles.sidebarItem}
-              onPress={() => {
-                setSidebarVisible(false);
-                const path = user.role === 'medecin' ? '/medecin' : user.role === 'technicien' ? '/technicien' : '/admin-planning';
+                const path = user?.role === 'admin' ? '/admin-planning' : user?.role === 'medecin' ? '/medecin' : '/technicien';
                 router.push(path);
               }}
             >
-              <Text style={styles.sidebarItemIcon}>📋</Text>
-              <Text style={styles.sidebarItemText}>Mon Planning</Text>
+              <Text style={styles.actionIcon}>➕</Text>
+              <Text style={styles.actionText}>Nouvel Événement</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.sidebarItem}
+              style={[styles.actionButton, { backgroundColor: '#28a745' }]}
               onPress={() => {
-                setSidebarVisible(false);
-                router.push('/chat');
+                const path = user?.role === 'admin' ? '/admin-planning' : user?.role === 'medecin' ? '/medecin' : '/technicien';
+                router.push(path);
               }}
             >
-              <Text style={styles.sidebarItemIcon}>💬</Text>
-              <Text style={styles.sidebarItemText}>Chat</Text>
+              <Text style={styles.actionIcon}>📋</Text>
+              <Text style={styles.actionText}>Voir Planning</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.sidebarItem, styles.logoutItem]}
-              onPress={handleLogout}
-            >
-              <Text style={styles.sidebarItemIcon}>🚪</Text>
-              <Text style={[styles.sidebarItemText, styles.logoutText]}>Déconnexion</Text>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#ffc107' }]} onPress={() => router.push('/admin-dashboard')}>
+              <Text style={styles.actionIcon}>📊</Text>
+              <Text style={styles.actionText}>Rapports</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#dc3545' }]} onPress={() => router.push('/settings')}>
+              <Text style={styles.actionIcon}>⚙️</Text>
+              <Text style={styles.actionText}>Paramètres</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    )}
+      </ScrollView>
+
+      {/* Sidebar provided globally in app/_layout.jsx */}
     </>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -575,80 +448,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
-  sidebarOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-  },
-  sidebarBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  sidebar: {
-    width: 280,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  sidebarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 40,
-    backgroundColor: '#007bff',
-  },
-  sidebarTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#fff',
-  },
-  sidebarContent: {
-    flex: 1,
-    padding: 20,
-  },
-  userInfo: {
-    padding: 15,
-    backgroundColor: '#f8f8f8',
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  userRole: {
-    fontSize: 14,
-    color: '#666',
-  },
-  sidebarItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    backgroundColor: '#f8f8f8',
-  },
-  sidebarItemIcon: {
-    fontSize: 20,
-    marginRight: 15,
-  },
-  sidebarItemText: {
-    fontSize: 16,
-    color: '#333',
-  },
+  // Sidebar-related styles removed; Sidebar is provided globally in app/_layout.jsx
   logoutItem: {
     marginTop: 'auto',
     backgroundColor: '#fee',

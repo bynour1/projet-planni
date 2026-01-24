@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { API_BASE } from '../constants/api';
+import boxShadow from '../utils/boxShadow';
 
 export default function ChangePasswordScreen({ navigation, route }) {
   const [oldPassword, setOldPassword] = useState('');
@@ -40,7 +42,7 @@ export default function ChangePasswordScreen({ navigation, route }) {
         return;
       }
 
-      const response = await fetch('http://localhost:8001/change-password', {
+const response = await fetch(`${API_BASE}/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,6 +186,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    boxShadow: boxShadow('#000', 2, 4, 0.1),
   },
   title: {
     fontSize: 22,

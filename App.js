@@ -16,6 +16,8 @@ import AdminScreen from "./screens/AdminScreen";
 import CalendarScreen from "./screens/CalendarScreen";
 import ChatScreen from "./screens/chatScreen";
 import DashboardScreen from "./screens/DashboardScreen";
+import EvenementsCrudScreen from "./screens/EvenementsCrudScreen";
+import EvenementsScreen from "./screens/EvenementsScreen";
 import MedecinScreen from "./screens/MedecinScreen";
 import PlanningScreen from "./screens/PlanningScreen";
 import RoutineScreen from "./screens/RoutineScreen";
@@ -51,6 +53,8 @@ function AppContent() {
           <Stack.Screen name="AdminPlanning" component={AdminPlanningScreen} />
           <Stack.Screen name="Chat" component={ChatScreen} />
           <Stack.Screen name="UserManagement" component={UserManagementScreen} />
+          <Stack.Screen name="Evenements" component={EvenementsScreen} />
+          <Stack.Screen name="EvenementsCrudScreen" component={EvenementsCrudScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>

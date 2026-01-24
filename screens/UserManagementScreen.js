@@ -1,19 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from "@react-native-picker/picker";
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Header from "../components/Header";
+import { API_BASE } from '../constants/api';
 
 // Base d'utilisateurs déjà créés par admin
 // initial local placeholder; real users are fetched from backend
 let usersList = [];
 
 export default function UserManagementScreen() {
+  const router = useRouter();
   const [users, setUsers] = useState([]);
   // load users from backend
   useEffect(() => {
     (async () => {
       try {
-        const resp = await fetch('http://localhost:8001/users');
+        const resp = await fetch(`${API_BASE}/users`);
         const json = await resp.json();
         if (json.success) setUsers(json.users);
       } catch (e) {
@@ -37,11 +41,14 @@ export default function UserManagementScreen() {
   const [adminConfirmContact, setAdminConfirmContact] = useState(""); // Contact du participant à confirmer
   const [showAdminConfirm, setShowAdminConfirm] = useState(false); // Afficher le formulaire de confirmation
   const [provisionalPassword, setProvisionalPassword] = useState(""); // Mot de passe provisoire créé par l'admin
-  
-  // États pour la création de mot de passe par le participant
-  const [userContactPassword, setUserContactPassword] = useState(""); // Email ou téléphone du participant
-  const [userNewPassword, setUserNewPassword] = useState(""); // Nouveau mot de passe
-  const [userConfirmPassword, setUserConfirmPassword] = useState(""); // Confirmation mot de passe
+  const [editModalVisible, setEditModalVisible] = useState(false); // Modal pour éditer
+  const [editingUser, setEditingUser] = useState(null); // Utilisateur en cours d'édition
+  const [editNom, setEditNom] = useState(""); // Nom en cours d'édition
+  const [editPrenom, setEditPrenom] = useState(""); // Prénom en cours d'édition
+  const [editEmail, setEditEmail] = useState(""); // Email en cours d'édition
+  const [editPhone, setEditPhone] = useState(""); // Téléphone en cours d'édition
+  const [editRole, setEditRole] = useState("medecin"); // Rôle en cours d'édition
+  const [searchQuery, setSearchQuery] = useState(""); // Filtre de recherche des participants
 
   // Validate email locally: proper format and exists in backend users list
   // Debounced check for invite email: format, existing via backend
@@ -57,7 +64,7 @@ export default function UserManagementScreen() {
     inviteCheckRef.current = setTimeout(async () => {
       setInviteChecking(true);
       try {
-        const res = await fetch('http://localhost:8001/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: inviteEmail }) });
+        const res = await fetch(`${API_BASE}/check-email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: inviteEmail }) });
         const j = await res.json();
         if (j && j.success) {
           if (j.exists && j.isConfirmed) setInviteEmailError('Cet email est déjà actif');
@@ -92,7 +99,7 @@ export default function UserManagementScreen() {
         return Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone pour l\'envoi par SMS');
       }
       
-      const response = await fetch("http://localhost:8001/send-code", {
+      const response = await fetch(`${API_BASE}/send-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contact: contactToSend }),
@@ -119,9 +126,15 @@ export default function UserManagementScreen() {
 
   // Admin: créer un utilisateur directement sans code
   const handleCreateDirect = async () => {
-    // Vérifier qu'il y a au moins un email OU un téléphone
-    if ((!inviteEmail && !invitePhone) || !inviteName || !invitePrenom) {
-      return Alert.alert('Erreur', 'Veuillez remplir nom, prénom et au moins email OU téléphone');
+    // Vérifier les données requises
+    if (!inviteEmail || !inviteName || !invitePrenom) {
+      return Alert.alert('Erreur', 'Veuillez remplir nom, prénom et email');
+    }
+    
+    // Valider l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail)) {
+      return Alert.alert('Erreur', 'Email invalide');
     }
     
     if (!provisionalPassword || provisionalPassword.length < 6) {
@@ -131,14 +144,14 @@ export default function UserManagementScreen() {
     try {
       setLoading(true);
       
-      const response = await fetch('http://localhost:8001/create-user-direct', {
+      const response = await fetch(`${API_BASE}/create-user-direct`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`
         },
         body: JSON.stringify({
-          email: inviteEmail.trim() || null,
+          email: inviteEmail.trim(),
           phone: invitePhone.trim() || null,
           password: provisionalPassword,
           nom: inviteName.trim(),
@@ -150,16 +163,15 @@ export default function UserManagementScreen() {
       const data = await response.json();
       
       if (data.success) {
-        const contact = data.contact || inviteEmail || invitePhone;
         Alert.alert(
-          'Succès', 
-          `Compte créé avec succès !\n\nIdentifiant : ${contact}\nMot de passe provisoire : ${data.provisionalPassword}\n\nCommuniquez ces identifiants au participant de manière sécurisée.\nIl devra changer son mot de passe lors de sa première connexion.`,
+          'Succès ✅', 
+          `Compte créé avec succès !\n\nEmail : ${inviteEmail}\nMot de passe : ${provisionalPassword}\n\nL'utilisateur peut maintenant se connecter directement.`,
           [{ text: 'OK' }]
         );
         
         // Recharger la liste des utilisateurs
         try { 
-          const r = await fetch('http://localhost:8001/users'); 
+          const r = await fetch(`${API_BASE}/users`); 
           const u = await r.json(); 
           if (u.success) setUsers(u.users); 
         } catch(e){ }
@@ -184,112 +196,9 @@ export default function UserManagementScreen() {
     }
   };
 
-  // Admin: invite user (create user and send code)
+  // Admin: invite user (create user directly with password)
   const handleInvite = async () => {
-    if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email à inviter');
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(inviteEmail)) return Alert.alert('Erreur', 'Email invalide');
-    if (inviteEmailError === 'Cet email est déjà actif') return Alert.alert('Erreur', inviteEmailError);
-    
-    // Vérifier si l'utilisateur existe déjà en attente
-    const existingUser = users.find(u => u.email === inviteEmail && !u.isConfirmed);
-    if (existingUser) {
-      // L'utilisateur existe déjà, juste renvoyer le code
-      return handleResendCode();
-    }
-    try {
-      setLoading(true);
-      const resp = await fetch('http://localhost:8001/invite-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, phone: invitePhone, nom: inviteName, prenom: invitePrenom, role: inviteRole, sendCodeBy: inviteSendCodeBy }),
-      });
-      const j = await resp.json();
-      if (j.success) {
-        // show returned id when available
-        const sendTo = inviteSendCodeBy === "email" ? inviteEmail : invitePhone;
-        const medium = inviteSendCodeBy === "email" ? "email" : "SMS";
-        if (j.userId) {
-          setLastInvitedId(j.userId);
-          setInviteMessage(j.code ? `Participant créé (id: ${j.userId}). Code envoyé par ${medium}: ${j.code}` : `Participant créé (id: ${j.userId}). Un code de confirmation a été envoyé par ${medium} à ${sendTo}`);
-        } else {
-          setInviteMessage(j.code ? `Participant créé. Code envoyé par ${medium}: ${j.code}` : `Participant créé. Un code de confirmation a été envoyé par ${medium} à ${sendTo}`);
-        }
-        // Afficher le formulaire de confirmation pour l'admin
-        setAdminConfirmContact(sendTo);
-        setShowAdminConfirm(true);
-        // reload users list
-        try { const r = await fetch('http://localhost:8001/users'); const u = await r.json(); if (u.success) setUsers(u.users); } catch(e){ }
-        // clear form on success
-        setInviteEmail(''); setInvitePhone(''); setInviteName(''); setInvitePrenom(''); setInviteRole('medecin'); setInviteSendCodeBy('email');
-      } else {
-        Alert.alert('Erreur', j.message || 'Impossible d\'inviter l\'utilisateur');
-      }
-      setLoading(false);
-    } catch (e) {
-      setLoading(false);
-      console.error(e);
-      Alert.alert('Erreur', 'Problème de connexion au serveur');
-    }
-  };
-
-  // Participant: créer son mot de passe après confirmation par l'admin
-  const handleCreateUserPassword = async () => {
-    if (!userContactPassword) {
-      return Alert.alert("Erreur", "Veuillez entrer votre email ou téléphone");
-    }
-    if (userNewPassword.length < 8) {
-      return Alert.alert("Erreur", "Le mot de passe doit contenir au moins 8 caractères");
-    }
-    if (userNewPassword !== userConfirmPassword) {
-      return Alert.alert("Erreur", "Les mots de passe ne correspondent pas");
-    }
-
-    try {
-      // Vérifier si l'utilisateur existe et est confirmé
-      const existingUser = users.find((u) => 
-        (u.email === userContactPassword || u.phone === userContactPassword) && u.isConfirmed
-      );
-      
-      if (!existingUser) {
-        return Alert.alert("Erreur", "Contact introuvable ou non confirmé par l'admin");
-      }
-      
-      if (existingUser.password) {
-        return Alert.alert("Info", "Ce compte a déjà un mot de passe. Connectez-vous.");
-      }
-
-      const response = await fetch('http://localhost:8001/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: existingUser.email, 
-          password: userNewPassword, 
-          nom: existingUser.nom, 
-          prenom: existingUser.prenom, 
-          role: existingUser.role 
-        }),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        Alert.alert('Succès', 'Mot de passe créé ! Vous pouvez maintenant vous connecter.');
-        setUserContactPassword("");
-        setUserNewPassword("");
-        setUserConfirmPassword("");
-        // Recharger la liste des utilisateurs
-        try {
-          const resp = await fetch('http://localhost:8001/users');
-          const data = await resp.json();
-          if (j.success) setUsers(j.users);
-        } catch (e) { /* ignore */ }
-      } else {
-        Alert.alert('Erreur', data.message || 'Impossible de créer le mot de passe');
-      }
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Erreur', 'Problème de connexion au serveur');
-    }
+    return handleCreateDirect();
   };
 
   // Admin: confirmer le code pour activer le participant
@@ -303,7 +212,7 @@ export default function UserManagementScreen() {
     }
     
     try {
-      const response = await fetch("http://localhost:8001/verify-code", {
+      const response = await fetch(`${API_BASE}/verify-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -328,7 +237,7 @@ export default function UserManagementScreen() {
         setLastInvitedId(null);
         // Recharger la liste des utilisateurs
         try { 
-          const r = await fetch('http://localhost:8001/users'); 
+          const r = await fetch(`${API_BASE}/users`); 
           const u = await r.json(); 
           if (u.success) setUsers(u.users); 
         } catch(e){ }
@@ -345,7 +254,7 @@ export default function UserManagementScreen() {
   const handleActivate = async (userEmail) => {
     try {
       setLoading(true);
-      const resp = await fetch('http://localhost:8001/admin/activate', {
+      const resp = await fetch(`${API_BASE}/admin/activate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: userEmail }),
       });
       const j = await resp.json();
@@ -363,233 +272,358 @@ export default function UserManagementScreen() {
     }
   };
 
+  // Edit active user
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setEditNom(user.nom || "");
+    setEditPrenom(user.prenom || "");
+    setEditEmail(user.email || "");
+    setEditPhone(user.phone || "");
+    setEditRole(user.role || "medecin");
+    setEditModalVisible(true);
+  };
 
+  const handleSaveEdit = async () => {
+    if (!editPrenom || editPrenom.trim() === '') {
+      Alert.alert('Erreur', 'Veuillez entrer un prénom');
+      return;
+    }
+    if (!editNom || editNom.trim() === '') {
+      Alert.alert('Erreur', 'Veuillez entrer un nom');
+      return;
+    }
+    if (!editEmail || editEmail.trim() === '') {
+      Alert.alert('Erreur', 'Veuillez entrer un email');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${API_BASE}/update-user/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prenom: editPrenom.trim(),
+          nom: editNom.trim(),
+          email: editEmail.trim(),
+          phone: editPhone.trim(),
+          role: editRole,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        Alert.alert('Succès', 'Participant modifié');
+        setEditModalVisible(false);
+        setEditingUser(null);
+        setEditNom("");
+        setEditPrenom("");
+        setEditEmail("");
+        setEditPhone("");
+        // Recharger la liste
+        const r = await fetch(`${API_BASE}/users`);
+        const u = await r.json();
+        if (u.success) setUsers(u.users);
+      } else {
+        Alert.alert('Erreur', data.message || 'Modification échouée');
+      }
+    } catch (error) {
+      console.error('Edit error:', error);
+      Alert.alert('Erreur', 'Problème de connexion');
+    }
+  };
+
+  // Delete active user
+  const handleDeleteUser = (user) => {
+    Alert.alert(
+      'Supprimer le participant',
+      `Êtes-vous sûr de vouloir supprimer ${user.prenom} ${user.nom} (${user.email}) ?\n\nCette action est permanente !`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('userToken');
+              console.log('[DELETE] Token récupéré:', token ? '✓' : '✗');
+              console.log('[DELETE] Suppression de user ID:', user.id);
+              console.log('[DELETE] URL:', `${API_BASE}/delete-user/${user.id}`);
+              
+              const response = await fetch(`${API_BASE}/delete-user/${user.id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+              });
+
+              console.log('[DELETE] Status:', response.status);
+              const data = await response.json();
+              console.log('[DELETE] Response:', data);
+              
+              if (data.success) {
+                Alert.alert('Succès', `${user.prenom} ${user.nom} a été supprimé`);
+                // Recharger la liste
+                const r = await fetch(`${API_BASE}/users`);
+                const u = await r.json();
+                if (u.success) setUsers(u.users);
+              } else {
+                Alert.alert('Erreur', data.message || 'Suppression échouée');
+              }
+            } catch (error) {
+              console.error('[DELETE] Erreur:', error);
+              Alert.alert('Erreur', 'Problème de connexion: ' + error.message);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.mainTitle}>Gestion des utilisateurs</Text>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      {/* Edit Modal - Web compatible */}
+      <Modal
+        visible={editModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setEditModalVisible(false);
+          setEditingUser(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Modifier le participant</Text>
+              {editingUser && (
+                <Text style={styles.modalSubtitle}>
+                  ID #{editingUser.id} - {editingUser.prenom} {editingUser.nom}
+                </Text>
+              )}
+              
+              <Text style={styles.labelText}>Nom *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Nom"
+                value={editNom}
+                onChangeText={setEditNom}
+              />
+              
+              <Text style={styles.labelText}>Prénom *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Prénom"
+                value={editPrenom}
+                onChangeText={setEditPrenom}
+              />
+              
+              <Text style={styles.labelText}>Email *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={editEmail}
+                onChangeText={setEditEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              
+              <Text style={styles.labelText}>Téléphone</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Téléphone (optionnel)"
+                value={editPhone}
+                onChangeText={setEditPhone}
+                keyboardType="phone-pad"
+              />
+              
+              <Text style={styles.labelText}>Rôle *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={editRole}
+                  onValueChange={setEditRole}
+                  style={{ height: 50, width: '100%' }}
+                >
+                  <Picker.Item label="👑 Admin" value="admin" />
+                  <Picker.Item label="🩺 Médecin" value="medecin" />
+                  <Picker.Item label="🔧 Technicien" value="technicien" />
+                </Picker>
+              </View>
+              
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <TouchableOpacity
+                  style={[styles.button, { flex: 1, backgroundColor: '#6c757d' }]}
+                  onPress={() => {
+                    setEditModalVisible(false);
+                    setEditingUser(null);
+                  }}
+                >
+                  <Text style={styles.buttonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, { flex: 1 }]}
+                  onPress={handleSaveEdit}
+                >
+                  <Text style={styles.buttonText}>✏️ Modifier</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+      <Header title="Gestion des utilisateurs" />
+      <ScrollView contentContainerStyle={styles.container}>
 
-      {/* Section participant: créer son mot de passe après confirmation admin */}
+      {/* Invite card - ADMIN ONLY */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>🔐 Créer votre mot de passe</Text>
-        <Text style={styles.infoText}>Si l'admin a confirmé votre compte, vous pouvez créer votre mot de passe</Text>
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Votre email ou téléphone" 
-          value={userContactPassword} 
-          onChangeText={setUserContactPassword} 
-          autoCapitalize="none"
-        />
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Nouveau mot de passe (min 8 caractères)" 
-          value={userNewPassword} 
-          onChangeText={setUserNewPassword} 
-          secureTextEntry
-        />
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Confirmer le mot de passe" 
-          value={userConfirmPassword} 
-          onChangeText={setUserConfirmPassword} 
-          secureTextEntry
-        />
-        
-        {userNewPassword && userConfirmPassword && userNewPassword !== userConfirmPassword ? (
-          <Text style={{ color: 'red', marginBottom: 8 }}>❌ Les mots de passe ne correspondent pas</Text>
-        ) : null}
-        
-        <TouchableOpacity 
-          style={[
-            styles.button, 
-            (!userContactPassword || userNewPassword.length < 8 || userNewPassword !== userConfirmPassword) 
-              ? { opacity: 0.6 } 
-              : null
-          ]} 
-          onPress={handleCreateUserPassword} 
-          disabled={!userContactPassword || userNewPassword.length < 8 || userNewPassword !== userConfirmPassword}
-        >
-          <Text style={styles.buttonText}>✅ Créer mon mot de passe</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Invite card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>👥 Créer un nouveau participant</Text>
-        <Text style={styles.infoText}>Choisissez votre méthode de création de compte</Text>
+        <Text style={styles.cardTitle}>👥 Créer un nouveau participant (Admin)</Text>
+        <Text style={styles.infoText}>Le participant pourra se connecter immédiatement avec ses identifiants</Text>
         <TextInput style={styles.input} placeholder="Nom *" value={inviteName} onChangeText={setInviteName} />
         <TextInput style={styles.input} placeholder="Prénom *" value={invitePrenom} onChangeText={setInvitePrenom} />
-        <TextInput style={styles.input} placeholder="Email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-        <TextInput style={styles.input} placeholder="Téléphone" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
-        <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, fontStyle: 'italic' }}>* Au moins un email OU un téléphone est requis</Text>
+        <TextInput style={styles.input} placeholder="Email *" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+        <TextInput style={styles.input} placeholder="Mot de passe *" value={provisionalPassword} onChangeText={setProvisionalPassword} secureTextEntry={true} />
+        <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, fontStyle: 'italic' }}>* Mot de passe minimum 6 caractères</Text>
         
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
         {inviteEmailError === 'Cet email est déjà actif' ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
-        {users.find(u => u.email === inviteEmail && !u.isConfirmed) ? <Text style={{ color: 'blue', marginBottom: 8 }}>🔄 Cet email est en attente. Le code sera renvoyé.</Text> : null}
         
-        <Text style={styles.labelText}>Situation (Rôle) *</Text>
+        <Text style={styles.labelText}>Rôle *</Text>
         <Picker selectedValue={inviteRole} style={styles.picker} onValueChange={(itemValue) => setInviteRole(itemValue)}>
           <Picker.Item label="Médecin" value="medecin" />
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
         
-        <View style={{ backgroundColor: '#f8f9fa', padding: 15, borderRadius: 8, marginBottom: 15 }}>
-          <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>📝 Mot de passe provisoire (optionnel)</Text>
-          <Text style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>Si vous entrez un mot de passe, le compte sera créé directement sans email de confirmation</Text>
-          <TextInput 
-            style={styles.input} 
-            placeholder="Mot de passe provisoire (min. 6 caractères)" 
-            value={provisionalPassword} 
-            onChangeText={setProvisionalPassword} 
-            secureTextEntry={false}
-            autoCapitalize="none"
-          />
-          {provisionalPassword && provisionalPassword.length < 6 ? (
-            <Text style={{ color: 'orange', fontSize: 12 }}>⚠️ Le mot de passe doit contenir au moins 6 caractères</Text>
-          ) : null}
+        <View style={{ backgroundColor: '#e7f3ff', padding: 15, borderRadius: 8, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#007bff' }}>
+          <Text style={{ fontWeight: 'bold', marginBottom: 5, color: '#004085' }}>ℹ️ Information</Text>
+          <Text style={{ fontSize: 13, color: '#004085' }}>
+            Le participant sera créé immédiatement et pourra se connecter directement avec son email et son mot de passe.
+          </Text>
         </View>
-        
-        {!provisionalPassword && (
-          <>
-            <Text style={styles.labelText}>📧 Envoyer le code de confirmation par :</Text>
-            <Picker selectedValue={inviteSendCodeBy} style={styles.picker} onValueChange={setInviteSendCodeBy}>
-              <Picker.Item label="✉️ Email" value="email" />
-              <Picker.Item label="📱 SMS / Téléphone" value="phone" />
-            </Picker>
-            {inviteSendCodeBy === "phone" && !invitePhone ? <Text style={{ color: 'orange', marginBottom: 8 }}>⚠️ Veuillez entrer un numéro de téléphone pour l'envoi par SMS</Text> : null}
-          </>
-        )}
         
         <TouchableOpacity 
           style={[
             styles.button, 
             (
-              (!inviteEmail && !invitePhone) || 
+              !inviteEmail ||
               !inviteName || 
               !invitePrenom || 
+              !provisionalPassword ||
+              provisionalPassword.length < 6 ||
               inviteChecking || 
               loading ||
-              (inviteEmailError === 'Cet email est déjà actif') || 
-              (provisionalPassword && provisionalPassword.length < 6) ||
-              (!provisionalPassword && inviteSendCodeBy === "phone" && !invitePhone) ||
-              (!provisionalPassword && inviteSendCodeBy === "email" && !inviteEmail)
+              (inviteEmailError === 'Cet email est déjà actif')
             ) ? { opacity: 0.6 } : null
           ]} 
-          onPress={provisionalPassword ? handleCreateDirect : handleInvite} 
+          onPress={handleInvite} 
           disabled={
-            (!inviteEmail && !invitePhone) || 
+            !inviteEmail ||
             !inviteName || 
             !invitePrenom || 
+            !provisionalPassword ||
+            provisionalPassword.length < 6 ||
             inviteChecking || 
             loading ||
-            (inviteEmailError === 'Cet email est déjà actif') || 
-            (provisionalPassword && provisionalPassword.length < 6) ||
-            (!provisionalPassword && inviteSendCodeBy === "phone" && !invitePhone) ||
-            (!provisionalPassword && inviteSendCodeBy === "email" && !inviteEmail)
+            (inviteEmailError === 'Cet email est déjà actif')
           }
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{provisionalPassword ? '✅ Créer directement' : (users.find(u => u.email === inviteEmail && !u.isConfirmed) ? '🔄 Renvoyer le code' : '✉️ Créer et envoyer le code')}</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✅ Créer le compte</Text>}
         </TouchableOpacity>
         {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}
-        {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID invité: #{lastInvitedId}</Text> : null}
-        
-        {showAdminConfirm && (
-          <View style={styles.confirmSection}>
-            <Text style={styles.confirmTitle}>🔐 Confirmer le participant</Text>
-            <Text style={styles.infoText}>Le code a été envoyé à : {adminConfirmContact}</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="Entrez le code de confirmation" 
-              value={adminConfirmCode} 
-              onChangeText={setAdminConfirmCode} 
-              keyboardType="number-pad" 
-            />
-            <Text style={[styles.infoText, { marginTop: 15, fontWeight: 'bold' }]}>
-              Créer un mot de passe provisoire
-            </Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="Mot de passe provisoire (min. 6 caractères)" 
-              value={provisionalPassword} 
-              onChangeText={setProvisionalPassword} 
-              secureTextEntry={false}
-              autoCapitalize="none"
-            />
-            <Text style={[styles.infoText, { fontSize: 12, color: '#888', marginTop: 5 }]}>
-              Ce mot de passe sera communiqué au participant. Il devra le changer lors de sa première connexion.
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-              <TouchableOpacity 
-                style={[styles.button, { flex: 1, backgroundColor: '#6c757d' }]} 
-                onPress={() => {
-                  setShowAdminConfirm(false);
-                  setAdminConfirmCode("");
-                  setAdminConfirmContact("");
-                  setProvisionalPassword("");
-                }}
-              >
-                <Text style={styles.buttonText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.button, { flex: 1 }, (!adminConfirmCode || !provisionalPassword) ? { opacity: 0.6 } : null]} 
-                onPress={handleAdminConfirmCode} 
-                disabled={!adminConfirmCode || !provisionalPassword}
-              >
-                <Text style={styles.buttonText}>✅ Confirmer</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID créé: #{lastInvitedId}</Text> : null}
       </View>
 
-      {/* Pending invites */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>⏳ Comptes en attente de confirmation</Text>
-        <Text style={styles.infoText}>Ces utilisateurs ont reçu un code mais ne l'ont pas encore validé</Text>
-        <FlatList
-          data={users.filter(u => !u.isConfirmed)}
-          keyExtractor={(item) => item.id ? String(item.id) : item.email}
-          renderItem={({ item }) => (
-            <View style={styles.userRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
-                <Text style={styles.emailText}>✉️ {item.email}</Text>
-                {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
-                <Text style={styles.roleText}>{item.role === 'medecin' ? '🩺 Médecin' : '🔧 Technicien'}</Text>
-              </View>
-              <TouchableOpacity style={styles.smallButton} onPress={() => handleActivate(item.email)}>
-                <Text style={styles.smallButtonText}>Activer</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          ListEmptyComponent={<Text style={styles.empty}>Aucune invitation en attente</Text>}
-        />
-      </View>
 
-      {/* Active users */}
+      {/* Active users - CRUD Admin */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>✅ Participants actifs</Text>
-        <Text style={styles.infoText}>Utilisateurs ayant confirmé leur compte et pouvant accéder à l'application</Text>
+        
+        {/* Recherche et Statistiques */}
+        <TextInput
+          style={styles.input}
+          placeholder="🔍 Rechercher par nom, email, téléphone..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        <View style={styles.statsContainer}>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{users.filter(u => u.isConfirmed).length}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{users.filter(u => u.isConfirmed && u.role === 'medecin').length}</Text>
+            <Text style={styles.statLabel}>Médecins</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{users.filter(u => u.isConfirmed && u.role === 'technicien').length}</Text>
+            <Text style={styles.statLabel}>Techniciens</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{users.filter(u => u.isConfirmed && u.role === 'admin').length}</Text>
+            <Text style={styles.statLabel}>Admins</Text>
+          </View>
+        </View>
+        
+        {/* Liste des participants */}
         <FlatList
-          data={users.filter(u => u.isConfirmed)}
+          scrollEnabled={false}
+          data={users.filter(u => {
+            if (!u.isConfirmed) return false;
+            const query = searchQuery.toLowerCase();
+            return (
+              u.nom.toLowerCase().includes(query) ||
+              u.prenom.toLowerCase().includes(query) ||
+              u.email.toLowerCase().includes(query) ||
+              (u.phone && u.phone.includes(query))
+            );
+          })}
           keyExtractor={(item) => item.id ? String(item.id) : item.email}
           renderItem={({ item }) => (
-            <View style={styles.userRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.userText}>{item.id ? `#${item.id} ` : ''}{item.nom} {item.prenom}</Text>
+            <View style={styles.expandedParticipantCard}>
+              <View>
+                <Text style={styles.participantIdExpanded}>#{item.id}</Text>
+                <View style={styles.userHeaderRow}>
+                  <Text style={styles.userTextExpanded}>{item.nom} {item.prenom}</Text>
+                  <View style={[
+                    styles.roleBadge,
+                    {
+                      backgroundColor: '#007bff'
+                    }
+                  ]}>
+                    <Text style={styles.badgeText}>
+                      {item.role === 'medecin' ? '🩺 Médecin' : item.role === 'technicien' ? '🔧 Technicien' : '👑 Admin'}
+                    </Text>
+                  </View>
+                </View>
                 <Text style={styles.emailText}>✉️ {item.email}</Text>
                 {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
-                <Text style={styles.roleText}>{item.role === 'medecin' ? '🩺 Médecin' : item.role === 'technicien' ? '🔧 Technicien' : '👑 Admin'}</Text>
+              </View>
+              
+              <View style={styles.actionButtonsRow}>
+                <TouchableOpacity 
+                  style={styles.editActionBtn}
+                  onPress={() => handleEditUser(item)}
+                >
+                  <Text style={styles.actionBtnText}>✏️</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.deleteActionBtn}
+                  onPress={() => handleDeleteUser(item)}
+                >
+                  <Text style={styles.actionBtnText}>🗑️</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>Aucun utilisateur actif</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>Aucun participant actif</Text>}
         />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -610,6 +644,68 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 15, color: "#333" },
+  crudButton: { 
+    backgroundColor: '#007bff', 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    borderRadius: 6 
+  },
+  crudButtonText: { 
+    color: '#fff', 
+    fontSize: 14, 
+    fontWeight: '600' 
+  },
+  activeUserCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#007bff',
+  },
+  userHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 10,
+  },
+  roleBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editActionBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff3cd',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  deleteActionBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#cce5ff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#99c9ff',
+  },
+  actionBtnText: {
+    fontSize: 16,
+  },
   userRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -619,7 +715,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 10,
   },
-  successText: { color: '#28a745', marginTop: 10, fontWeight: '600' },
+  successText: { color: '#007bff', marginTop: 10, fontWeight: '600' },
   smallInfo: { fontSize: 12, color: '#888', marginTop: 5 },
   empty: { textAlign: 'center', color: '#999', fontStyle: 'italic', marginTop: 10 },
   infoText: { fontSize: 14, color: '#555', marginBottom: 15, textAlign: 'center' },
@@ -639,7 +735,7 @@ const styles = StyleSheet.create({
   phoneText: { fontSize: 14, color: "#888", marginTop: 2 },
   roleText: { fontSize: 13, color: "#007bff", marginTop: 4, fontWeight: '500' },
   labelText: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 5 },
-  smallButton: { marginTop: 8, backgroundColor: '#28a745', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
+  smallButton: { marginTop: 8, backgroundColor: '#007bff', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
   smallButtonText: { color: '#fff', fontWeight: '600' },
   confirmSection: { 
     marginTop: 20, 
@@ -655,6 +751,102 @@ const styles = StyleSheet.create({
     color: '#856404', 
     marginBottom: 10, 
     textAlign: 'center' 
-  }
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 15,
+    backgroundColor: '#f9f9f9',
+  },
+  expandedParticipantCard: {
+    backgroundColor: '#fff',
+    borderLeftWidth: 3,
+    borderLeftColor: '#007bff',
+    padding: 15,
+    marginBottom: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    boxShadow: '0px 2px 6px rgba(0,0,0,0.1)',
+    elevation: 2,
+  },
+  participantIdExpanded: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#007bff',
+    marginBottom: 5,
+  },
+  userTextExpanded: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+    gap: 10,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#f9f9f9',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#007bff',
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  emptyExpandedContainer: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandedPromptText: {
+    fontSize: 15,
+    color: '#007bff',
+    fontWeight: '500',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
 });
-
