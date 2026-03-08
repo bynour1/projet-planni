@@ -58,7 +58,7 @@ async function testDB() {
     console.log('\n📝 Login credentials:');
     console.log('   Email: admin@gmt.com');
     console.log('   Password: admin123');
-    console.log('   URL: http://localhost:8082/login\n');
+    console.log('   URL: http://localhost:8081/login\n');
 
   } catch (error) {
     console.error('\n❌ Error:', error.message);

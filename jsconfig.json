@@ -1,4 +1,18 @@
 {
-  "compilerOptions": {},
-  "exclude": ["node_modules"]
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": false,
+    "noEmit": true,
+    "checkJs": false,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+  },
+  "exclude": ["node_modules"],
+  "include": [
+    "**/*.js",
+    "**/*.jsx",
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }

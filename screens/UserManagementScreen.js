@@ -27,7 +27,6 @@ export default function UserManagementScreen() {
   }, []);
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [invitePhone, setInvitePhone] = useState("");
   const [inviteRole, setInviteRole] = useState("medecin");
   const [inviteName, setInviteName] = useState("");
   const [invitePrenom, setInvitePrenom] = useState("");
@@ -35,7 +34,6 @@ export default function UserManagementScreen() {
   const [lastInvitedId, setLastInvitedId] = useState(null);
   const [inviteEmailError, setInviteEmailError] = useState('');
   const [inviteChecking, setInviteChecking] = useState(false);
-  const [inviteSendCodeBy, setInviteSendCodeBy] = useState("email"); // "email" ou "phone"
   const inviteCheckRef = useRef(null);
   const [adminConfirmCode, setAdminConfirmCode] = useState(""); // Code saisi par l'admin
   const [adminConfirmContact, setAdminConfirmContact] = useState(""); // Contact du participant à confirmer
@@ -86,32 +84,25 @@ export default function UserManagementScreen() {
 
 
 
-  // Admin: renvoyer le code à un utilisateur en attente 
+  // Admin: renvoyer le code à un utilisateur en attente (EMAIL SEULEMENT)
   const handleResendCode = async () => {
     if (!inviteEmail) return Alert.alert('Erreur', 'Veuillez entrer un email');
     
     try {
       setLoading(true);
-      const contactToSend = inviteSendCodeBy === "email" ? inviteEmail : invitePhone;
-      
-      if (inviteSendCodeBy === "phone" && !invitePhone) {
-        setLoading(false);
-        return Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone pour l\'envoi par SMS');
-      }
       
       const response = await fetch(`${API_BASE}/send-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact: contactToSend }),
+        body: JSON.stringify({ contact: inviteEmail }),
       });
 
       const data = await response.json();
       if (data.success) {
-        const medium = inviteSendCodeBy === "email" ? "email" : "SMS";
         if (data.code) console.log('Code (dev):', data.code);
-        setInviteMessage(`Code renvoyé par ${medium} à ${contactToSend}${data.code ? '. Code: ' + data.code : ''}`);
+        setInviteMessage(`Code renvoyé par email à ${inviteEmail}${data.code ? '. Code: ' + data.code : ''}`);
         // Afficher le formulaire de confirmation pour l'admin
-        setAdminConfirmContact(contactToSend);
+        setAdminConfirmContact(inviteEmail);
         setShowAdminConfirm(true);
       } else {
         Alert.alert("Erreur", data.message || "Impossible de renvoyer le code");
@@ -124,7 +115,7 @@ export default function UserManagementScreen() {
     }
   };
 
-  // Admin: créer un utilisateur directement sans code
+  // Admin: créer un utilisateur avec code de confirmation par EMAIL
   const handleCreateDirect = async () => {
     // Vérifier les données requises
     if (!inviteEmail || !inviteName || !invitePrenom) {
@@ -137,23 +128,17 @@ export default function UserManagementScreen() {
       return Alert.alert('Erreur', 'Email invalide');
     }
     
-    if (!provisionalPassword || provisionalPassword.length < 6) {
-      return Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
-    }
-    
     try {
       setLoading(true);
       
-      const response = await fetch(`${API_BASE}/create-user-direct`, {
+      // Créer l'utilisateur et envoyer un code de confirmation par EMAIL
+      const response = await fetch(`${API_BASE}/invite-user`, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           email: inviteEmail.trim(),
-          phone: invitePhone.trim() || null,
-          password: provisionalPassword,
           nom: inviteName.trim(),
           prenom: invitePrenom.trim(),
           role: inviteRole
@@ -163,35 +148,44 @@ export default function UserManagementScreen() {
       const data = await response.json();
       
       if (data.success) {
+        // Afficher le formulaire de confirmation pour l'admin
+        setAdminConfirmContact(inviteEmail.trim());
+        
+        // Pré-remplir le code si disponible
+        if (data.code) {
+          setAdminConfirmCode(data.code);
+        }
+        
+        setShowAdminConfirm(true);
+        
         Alert.alert(
           'Succès ✅', 
-          `Compte créé avec succès !\n\nEmail : ${inviteEmail}\nMot de passe : ${provisionalPassword}\n\nL'utilisateur peut maintenant se connecter directement.`,
+          `Invitation envoyée !\n\nUn code de confirmation a été envoyé à :\n${inviteEmail}\n\nDemandez le code à l'utilisateur et entrez-le ci-dessous pour activer son compte.`,
           [{ text: 'OK' }]
         );
         
-        // Recharger la liste des utilisateurs
-        try { 
-          const r = await fetch(`${API_BASE}/users`); 
-          const u = await r.json(); 
-          if (u.success) setUsers(u.users); 
-        } catch(e){ }
+        // Afficher le code 
+        if (data.code) {
+          console.log('📝 Code:', data.code);
+          setInviteMessage(`✅ Code généré: ${data.code}`);
+        } else {
+          setInviteMessage('Code de confirmation envoyé par email');
+        }
         
         // Réinitialiser le formulaire
         setInviteEmail('');
-        setInvitePhone('');
         setInviteName('');
         setInvitePrenom('');
         setInviteRole('medecin');
         setProvisionalPassword('');
-        setInviteMessage('');
       } else {
-        Alert.alert('Erreur', data.message || 'Impossible de créer le compte');
+        Alert.alert('Erreur', data.message || 'Impossible d\'envoyer l\'invitation');
       }
       
       setLoading(false);
     } catch (error) {
       setLoading(false);
-      console.error('Error creating user directly:', error);
+      console.error('Error sending invitation:', error);
       Alert.alert('Erreur', 'Problème de connexion au serveur');
     }
   };
@@ -386,6 +380,81 @@ export default function UserManagementScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      {/* Confirmation Code Modal - Admin */}
+      <Modal
+        visible={showAdminConfirm}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAdminConfirm(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirmer le code</Text>
+            <Text style={styles.modalSubtitle}>
+              L'utilisateur a reçu un code à 6 chiffres par email. Demandez-lui et entrez-le ci-dessous.
+            </Text>
+
+            <Text style={styles.labelText}>Contact (Email)</Text>
+            <TextInput
+              style={[styles.input, { editable: false, backgroundColor: '#f0f0f0' }]}
+              value={adminConfirmContact}
+              placeholder="Email"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.labelText}>Code de confirmation *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Entrez le code à 6 chiffres"
+              value={adminConfirmCode}
+              onChangeText={setAdminConfirmCode}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.labelText}>Mot de passe provisoire *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Min. 6 caractères"
+              value={provisionalPassword}
+              onChangeText={setProvisionalPassword}
+              secureTextEntry={true}
+              placeholderTextColor="#999"
+            />
+
+            <View style={{ backgroundColor: '#fff3cd', padding: 12, borderRadius: 8, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#ff8a00' }}>
+              <Text style={{ fontSize: 12, color: '#856404' }}>
+                ⚠️ Le participant devra changer ce mot de passe lors de sa première connexion.
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <TouchableOpacity
+                style={[styles.button, { flex: 1, backgroundColor: '#6c757d' }]}
+                onPress={() => {
+                  setShowAdminConfirm(false);
+                  setAdminConfirmCode('');
+                  setProvisionalPassword('');
+                }}
+              >
+                <Text style={styles.buttonText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  { flex: 1, opacity: (!adminConfirmCode || provisionalPassword.length < 6) ? 0.6 : 1 }
+                ]}
+                onPress={handleAdminConfirmCode}
+                disabled={!adminConfirmCode || provisionalPassword.length < 6}
+              >
+                <Text style={styles.buttonText}>✅ Confirmer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Edit Modal - Web compatible */}
       <Modal
         visible={editModalVisible}
@@ -451,6 +520,7 @@ export default function UserManagementScreen() {
                   <Picker.Item label="👑 Admin" value="admin" />
                   <Picker.Item label="🩺 Médecin" value="medecin" />
                   <Picker.Item label="🔧 Technicien" value="technicien" />
+
                 </Picker>
               </View>
               
@@ -481,12 +551,10 @@ export default function UserManagementScreen() {
       {/* Invite card - ADMIN ONLY */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>👥 Créer un nouveau participant (Admin)</Text>
-        <Text style={styles.infoText}>Le participant pourra se connecter immédiatement avec ses identifiants</Text>
+        <Text style={styles.infoText}>Un email de confirmation sera envoyé au participant</Text>
         <TextInput style={styles.input} placeholder="Nom *" value={inviteName} onChangeText={setInviteName} />
         <TextInput style={styles.input} placeholder="Prénom *" value={invitePrenom} onChangeText={setInvitePrenom} />
         <TextInput style={styles.input} placeholder="Email *" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-        <TextInput style={styles.input} placeholder="Mot de passe *" value={provisionalPassword} onChangeText={setProvisionalPassword} secureTextEntry={true} />
-        <Text style={{ fontSize: 12, color: '#666', marginBottom: 10, fontStyle: 'italic' }}>* Mot de passe minimum 6 caractères</Text>
         
         {inviteChecking ? <ActivityIndicator style={{ marginBottom: 8 }} /> : null}
         {inviteEmailError === 'Cet email est déjà actif' ? <Text style={{ color: 'red', marginBottom: 8 }}>{inviteEmailError}</Text> : null}
@@ -497,10 +565,12 @@ export default function UserManagementScreen() {
           <Picker.Item label="Technicien" value="technicien" />
         </Picker>
         
-        <View style={{ backgroundColor: '#e7f3ff', padding: 15, borderRadius: 8, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#007bff' }}>
-          <Text style={{ fontWeight: 'bold', marginBottom: 5, color: '#004085' }}>ℹ️ Information</Text>
+        <View style={{ backgroundColor: '#e7f3ff', padding: 15, borderRadius: 8, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#0066cc' }}>
+          <Text style={{ fontWeight: 'bold', marginBottom: 5, color: '#004085' }}>ℹ️ Processus d'activation</Text>
           <Text style={{ fontSize: 13, color: '#004085' }}>
-            Le participant sera créé immédiatement et pourra se connecter directement avec son email et son mot de passe.
+            1️⃣ Un code de confirmation sera envoyé à l'email de l'utilisateur{"\n"}
+            2️⃣ L'admin devra confirmer le code et définir un mot de passe provisoire{"\n"}
+            3️⃣ L'utilisateur pourra se connecter avec ce mot de passe
           </Text>
         </View>
         
@@ -510,9 +580,7 @@ export default function UserManagementScreen() {
             (
               !inviteEmail ||
               !inviteName || 
-              !invitePrenom || 
-              !provisionalPassword ||
-              provisionalPassword.length < 6 ||
+              !invitePrenom ||
               inviteChecking || 
               loading ||
               (inviteEmailError === 'Cet email est déjà actif')
@@ -523,14 +591,12 @@ export default function UserManagementScreen() {
             !inviteEmail ||
             !inviteName || 
             !invitePrenom || 
-            !provisionalPassword ||
-            provisionalPassword.length < 6 ||
             inviteChecking || 
             loading ||
             (inviteEmailError === 'Cet email est déjà actif')
           }
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✅ Créer le compte</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>📧 Créer et envoyer le code</Text>}
         </TouchableOpacity>
         {inviteMessage ? <Text style={styles.successText}>✅ {inviteMessage}</Text> : null}
         {lastInvitedId ? <Text style={styles.smallInfo}>Dernier ID créé: #{lastInvitedId}</Text> : null}
@@ -584,14 +650,14 @@ export default function UserManagementScreen() {
           keyExtractor={(item) => item.id ? String(item.id) : item.email}
           renderItem={({ item }) => (
             <View style={styles.expandedParticipantCard}>
-              <View>
+              <View style={styles.participantContentLeft}>
                 <Text style={styles.participantIdExpanded}>#{item.id}</Text>
                 <View style={styles.userHeaderRow}>
                   <Text style={styles.userTextExpanded}>{item.nom} {item.prenom}</Text>
                   <View style={[
                     styles.roleBadge,
                     {
-                      backgroundColor: '#007bff'
+                      backgroundColor: '#0066cc'
                     }
                   ]}>
                     <Text style={styles.badgeText}>
@@ -603,16 +669,20 @@ export default function UserManagementScreen() {
                 {item.phone ? <Text style={styles.phoneText}>📱 {item.phone}</Text> : null}
               </View>
               
-              <View style={styles.actionButtonsRow}>
+              <View style={styles.actionButtonsRow} pointerEvents="box-none">
                 <TouchableOpacity 
                   style={styles.editActionBtn}
                   onPress={() => handleEditUser(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 >
                   <Text style={styles.actionBtnText}>✏️</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.deleteActionBtn}
                   onPress={() => handleDeleteUser(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 >
                   <Text style={styles.actionBtnText}>🗑️</Text>
                 </TouchableOpacity>
@@ -632,7 +702,7 @@ const styles = StyleSheet.create({
   mainTitle: { fontSize: 26, fontWeight: "bold", marginBottom: 20, color: "#333", textAlign: "center" },
   input: { width: "100%", padding: 15, borderWidth: 1, borderColor: "#ccc", borderRadius: 10, marginBottom: 15, backgroundColor: "#fff" },
   picker: { width: "100%", marginBottom: 15, backgroundColor: "#fff", borderRadius: 10 },
-  button: { backgroundColor: "#007bff", paddingVertical: 15, borderRadius: 10, alignItems: "center", marginBottom: 20 },
+  button: { backgroundColor: "#0066cc", paddingVertical: 15, borderRadius: 10, alignItems: "center", marginBottom: 20 },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   listTitle: { fontSize: 20, fontWeight: "bold", marginVertical: 10, color: "#444" },
   card: {
@@ -645,7 +715,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 15, color: "#333" },
   crudButton: { 
-    backgroundColor: '#007bff', 
+    backgroundColor: '#0066cc', 
     paddingVertical: 8, 
     paddingHorizontal: 16, 
     borderRadius: 6 
@@ -664,7 +734,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
     borderLeftWidth: 3,
-    borderLeftColor: '#007bff',
+    borderLeftColor: '#0066cc',
   },
   userHeaderRow: {
     flexDirection: 'row',
@@ -686,22 +756,32 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     gap: 8,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   editActionBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff3cd',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#ffeaa7',
     borderRadius: 6,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#ffc107',
+    minWidth: 45,
+    minHeight: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   deleteActionBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#cce5ff',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#fab1a0',
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#99c9ff',
+    borderWidth: 2,
+    borderColor: '#e17055',
+    minWidth: 45,
+    minHeight: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   actionBtnText: {
     fontSize: 16,
@@ -715,7 +795,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 10,
   },
-  successText: { color: '#007bff', marginTop: 10, fontWeight: '600' },
+  successText: { color: '#0066cc', marginTop: 10, fontWeight: '600' },
   smallInfo: { fontSize: 12, color: '#888', marginTop: 5 },
   empty: { textAlign: 'center', color: '#999', fontStyle: 'italic', marginTop: 10 },
   infoText: { fontSize: 14, color: '#555', marginBottom: 15, textAlign: 'center' },
@@ -733,9 +813,9 @@ const styles = StyleSheet.create({
   userText: { fontSize: 16, fontWeight: "600", color: "#333" },
   emailText: { fontSize: 14, color: "#666" },
   phoneText: { fontSize: 14, color: "#888", marginTop: 2 },
-  roleText: { fontSize: 13, color: "#007bff", marginTop: 4, fontWeight: '500' },
+  roleText: { fontSize: 13, color: "#0066cc", marginTop: 4, fontWeight: '500' },
   labelText: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 5 },
-  smallButton: { marginTop: 8, backgroundColor: '#007bff', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
+  smallButton: { marginTop: 8, backgroundColor: '#0066cc', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, alignSelf: 'flex-start' },
   smallButtonText: { color: '#fff', fontWeight: '600' },
   confirmSection: { 
     marginTop: 20, 
@@ -790,7 +870,7 @@ const styles = StyleSheet.create({
   expandedParticipantCard: {
     backgroundColor: '#fff',
     borderLeftWidth: 3,
-    borderLeftColor: '#007bff',
+    borderLeftColor: '#0066cc',
     padding: 15,
     marginBottom: 12,
     borderRadius: 8,
@@ -800,10 +880,14 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 6px rgba(0,0,0,0.1)',
     elevation: 2,
   },
+  participantContentLeft: {
+    flex: 1,
+    marginRight: 10,
+  },
   participantIdExpanded: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#007bff',
+    color: '#0066cc',
     marginBottom: 5,
   },
   userTextExpanded: {
@@ -829,7 +913,7 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#007bff',
+    color: '#0066cc',
     marginBottom: 5,
   },
   statLabel: {
@@ -844,7 +928,7 @@ const styles = StyleSheet.create({
   },
   expandedPromptText: {
     fontSize: 15,
-    color: '#007bff',
+    color: '#0066cc',
     fontWeight: '500',
     textAlign: 'center',
     fontStyle: 'italic',

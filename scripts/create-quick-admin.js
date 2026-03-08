@@ -27,7 +27,7 @@ async function createQuickAdmin() {
     console.log('\n📋 Login credentials:');
     console.log(`   Email: ${email}`);
     console.log(`   Password: ${password}`);
-    console.log('\n🌐 URL: http://localhost:8082/login\n');
+    console.log('\n🌐 URL: http://localhost:8081/login\n');
 
   } catch (error) {
     console.error('❌ Error:', error.message);

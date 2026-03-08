@@ -24,20 +24,20 @@ export default function LoginScreen() {
 
   // Déterminer dynamiquement l'URL de l'API en dev (évite localhost sur appareil)
   const getApiBase = () => {
-    // En mode web, utiliser le même hostname que le navigateur et port backend 8082
+    // En mode web, utiliser le même hostname que le navigateur et port backend 8083
     // (permet d'utiliser localhost, 127.0.0.1 ou l'IP LAN automatiquement)
     if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-      return `${window.location.protocol}//${window.location.hostname}:8082`;
+      return `${window.location.protocol}//${window.location.hostname}:8083`;
     }
     try {
       const manifest = Constants.manifest || Constants.expoConfig || {};
       // debuggerHost ou hostUri contient souvent "192.168.x.x:port"
       const host = (manifest.debuggerHost || manifest.hostUri || process.env.API_HOST || '').split(':')[0];
-      if (host) return `http://${host}:8082`;
+      if (host) return `http://${host}:8083`;
     } catch (e) {
       // ignore
     }
-    return 'http://127.0.0.1:8082';
+    return 'http://127.0.0.1:8083';
   };
   const API_BASE = getApiBase();
   console.log('[LoginScreen] API_BASE =', API_BASE, 'hostname =', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
@@ -93,12 +93,8 @@ export default function LoginScreen() {
           return;
         }
         Alert.alert('Succès', `Bienvenue ${userObj.prenom} ${userObj.nom} !`);
-        // Redirect based on role
-        if (userObj.role === 'admin') {
-          router.replace('/admin-dashboard');
-        } else {
-          router.replace('/participant-dashboard');
-        }
+        // Redirect tous les utilisateurs vers le dashboard unifié
+        router.replace('/unified-dashboard');
       } else {
         setError(j.message || 'Email ou mot de passe incorrect');
         Alert.alert('Erreur', j.message || 'Email ou mot de passe incorrect');

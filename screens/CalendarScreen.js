@@ -1,27 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isSameMonth,
-  isToday,
-  startOfMonth,
-  startOfWeek
+    addMonths,
+    eachDayOfInterval,
+    endOfMonth,
+    endOfWeek,
+    format,
+    isSameMonth,
+    isToday,
+    startOfMonth,
+    startOfWeek
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useMemo, useState } from "react";
 import {
-  Alert,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { usePlanning } from "../contexts/PlanningContext";
 import { useUser } from "../contexts/UserContext";
@@ -43,6 +43,7 @@ export default function CalendarScreen() {
   const [selectedEventIndex, setSelectedEventIndex] = useState(null);
   const [form, setForm] = useState({ medecin: "", technicien: "", adresse: "" });
   const [commentForm, setCommentForm] = useState("");
+  const [filterMyPlanning, setFilterMyPlanning] = useState(false);
 
   // Get calendar days for the current month
   const calendarDays = useMemo(() => {
@@ -56,10 +57,26 @@ export default function CalendarScreen() {
     return eachDayOfInterval({ start: startDate, end: endDate });
   }, [currentMonth]);
 
-  // Get events for a specific date
+  // Get events for a specific date (with optional filtering)
   const getEventsForDate = (date) => {
     const dayLabel = format(date, "EEEE dd/MM", { locale: fr });
-    return planning[dayLabel] || [];
+    const allEvents = planning[dayLabel] || [];
+    
+    // If filter is off or user is admin, show all events
+    if (!filterMyPlanning || isAdmin) {
+      return allEvents;
+    }
+    
+    // If filter is on, show only user's events
+    const userName = user?.nom || '';
+    const firstNameLastName = user?.prenom && user?.nom ? `${user.prenom} ${user.nom}` : '';
+    
+    return allEvents.filter(event => {
+      return event.medecin === userName || 
+             event.medecin === firstNameLastName ||
+             event.technicien === userName ||
+             event.technicien === firstNameLastName;
+    });
   };
 
   // Handle date selection
@@ -144,7 +161,7 @@ export default function CalendarScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>📅 Calendrier</Text>
-          {canEdit ? (
+          {isAdmin ? (
             <View style={styles.adminBadge}>
               <Ionicons name="shield-checkmark" size={16} color="#fff" />
               <Text style={styles.adminBadgeText}>Admin</Text>
@@ -152,7 +169,7 @@ export default function CalendarScreen() {
           ) : (
             <View style={styles.readOnlyBadge}>
               <Ionicons name="eye" size={16} color="#fff" />
-              <Text style={styles.readOnlyBadgeText}>Lecture seule</Text>
+              <Text style={styles.readOnlyBadgeText}>Vue globale</Text>
             </View>
           )}
         </View>
@@ -164,14 +181,25 @@ export default function CalendarScreen() {
       {/* Navigation */}
       <View style={styles.navigation}>
         <TouchableOpacity style={styles.navButton} onPress={goToPreviousMonth}>
-          <Ionicons name="chevron-back" size={24} color="#007bff" />
+          <Ionicons name="chevron-back" size={24} color="#0066cc" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.todayButton} onPress={goToToday}>
           <Text style={styles.todayButtonText}>Aujourd'hui</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={goToNextMonth}>
-          <Ionicons name="chevron-forward" size={24} color="#007bff" />
+          <Ionicons name="chevron-forward" size={24} color="#0066cc" />
         </TouchableOpacity>
+        {!isAdmin && (
+          <TouchableOpacity 
+            style={[styles.filterButton, filterMyPlanning && styles.filterButtonActive]}
+            onPress={() => setFilterMyPlanning(!filterMyPlanning)}
+          >
+            <Ionicons name={filterMyPlanning ? "checkmark-circle" : "funnel"} size={18} color="#fff" />
+            <Text style={styles.filterButtonText}>
+              {filterMyPlanning ? 'Mon planning' : 'Tous'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Calendar Grid */}
@@ -231,7 +259,7 @@ export default function CalendarScreen() {
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "#007bff" }]} />
+          <View style={[styles.legendDot, { backgroundColor: "#0066cc" }]} />
           <Text style={styles.legendText}>Aujourd'hui</Text>
         </View>
         <View style={styles.legendItem}>
@@ -304,7 +332,7 @@ export default function CalendarScreen() {
                 <Text style={styles.formTitle}>Ajouter un nouvel événement:</Text>
                 
                 <View style={styles.inputContainer}>
-                  <Ionicons name="person" size={20} color="#007bff" style={styles.inputIcon} />
+                  <Ionicons name="person" size={20} color="#0066cc" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Médecin"
@@ -314,7 +342,7 @@ export default function CalendarScreen() {
                 </View>
                 
                 <View style={styles.inputContainer}>
-                  <Ionicons name="construct" size={20} color="#007bff" style={styles.inputIcon} />
+                  <Ionicons name="construct" size={20} color="#0066cc" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Technicien"
@@ -324,7 +352,7 @@ export default function CalendarScreen() {
                 </View>
                 
                 <View style={styles.inputContainer}>
-                  <Ionicons name="map" size={20} color="#007bff" style={styles.inputIcon} />
+                  <Ionicons name="map" size={20} color="#0066cc" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Adresse"
@@ -399,7 +427,7 @@ export default function CalendarScreen() {
                   <View style={styles.detailCard}>
                     <View style={styles.detailRow}>
                       <View style={styles.detailIcon}>
-                        <Ionicons name="person" size={20} color="#007bff" />
+                        <Ionicons name="person" size={20} color="#0066cc" />
                       </View>
                       <View style={styles.detailContent}>
                         <Text style={styles.detailLabel}>Médecin</Text>
@@ -518,7 +546,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   header: {
-    backgroundColor: "#007bff",
+    backgroundColor: "#0066cc",
     padding: 20,
     paddingTop: 40,
     paddingBottom: 15,
@@ -581,7 +609,7 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   todayButton: {
-    backgroundColor: "#007bff",
+    backgroundColor: "#0066cc",
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
@@ -589,6 +617,23 @@ const styles = StyleSheet.create({
   todayButtonText: {
     color: "#fff",
     fontWeight: "bold",
+  },
+  filterButton: {
+    backgroundColor: "#6c757d",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  filterButtonActive: {
+    backgroundColor: "#28a745",
+  },
+  filterButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 12,
   },
   calendarContainer: {
     flex: 1,
@@ -633,7 +678,7 @@ const styles = StyleSheet.create({
   todayCell: {
     backgroundColor: "#e3f2fd",
     borderWidth: 2,
-    borderColor: "#007bff",
+    borderColor: "#0066cc",
   },
   dayNumber: {
     fontSize: 16,
@@ -644,7 +689,7 @@ const styles = StyleSheet.create({
     color: "#999",
   },
   todayText: {
-    color: "#007bff",
+    color: "#0066cc",
     fontWeight: "bold",
   },
   eventIndicators: {
@@ -835,7 +880,7 @@ const styles = StyleSheet.create({
   },
   closeModalButton: {
     marginTop: 15,
-    backgroundColor: "#007bff",
+    backgroundColor: "#0066cc",
     paddingHorizontal: 30,
     paddingVertical: 10,
     borderRadius: 20,
@@ -939,7 +984,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#007bff",
+    backgroundColor: "#0066cc",
     padding: 12,
     borderRadius: 10,
     marginTop: 10,

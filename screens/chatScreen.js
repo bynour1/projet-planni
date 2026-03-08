@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Header from "../components/Header";
 import { useChat } from "../contexts/ChatContext";
@@ -28,7 +28,7 @@ export default function ChatScreen() {
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <View style={styles.message}>
-            <Text style={styles.user}>{item.user}:</Text>
+            <Text style={styles.user}>{item.user_name || item.user}:</Text>
             <Text>{item.text}</Text>
           </View>
         )}

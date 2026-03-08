@@ -21,7 +21,7 @@ function RootLayoutContent() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const segments = useSegments();
   const currentSegment = (segments && segments[0]) || '';
-  const isLoginRoute = currentSegment === 'login';
+  const isLoginRoute = currentSegment === 'login' || currentSegment === 'forgot-password';
 
   return (
     <>

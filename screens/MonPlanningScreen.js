@@ -1,8 +1,30 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Calendar } from 'react-native-calendars';
 import { usePlanning } from '../contexts/PlanningContext';
 import { useUser } from '../contexts/UserContext';
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fff' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingTop: 6, paddingLeft: 8 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 10 },
+  switchBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f1f1f1', marginHorizontal: 6 },
+  switchBtnActive: { backgroundColor: '#007bff' },
+  switchText: { color: '#333' },
+  switchTextActive: { color: '#fff' },
+  eventList: { padding: 10 },
+  eventTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  eventCard: { backgroundColor: '#f1f8ff', borderRadius: 8, padding: 10, marginBottom: 8 },
+  eventCardMedical: { backgroundColor: '#fffbe6', borderRadius: 8, padding: 10, marginBottom: 8 },
+  eventType: { fontWeight: 'bold', color: '#007bff' },
+  eventInfo: { color: '#333', marginTop: 4 },
+  noEvent: { color: '#888', fontStyle: 'italic' },
+  addMedicalBtn: { backgroundColor: '#007bff', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 },
+  eventForm: { backgroundColor: '#fff', padding: 10, borderRadius: 8, marginTop: 8 },
+  input: { borderWidth: 1, borderColor: '#ccc', padding: 8, borderRadius: 6, marginBottom: 8 },
+  saveMedicalBtn: { backgroundColor: '#28a745', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 },
+  cancelMedicalBtn: { padding: 10, alignItems: 'center', marginTop: 8 },
+});
 
 function getMarkedDates(planning) {
   const marked = {};
@@ -60,14 +82,15 @@ export default function MonPlanningScreen() {
 
         {view === 'mois' ? (
           <>
-            <Calendar
-              markedDates={{
-                ...markedDates,
-                ...(selected ? { [selected]: { selected: true, selectedColor: '#007bff' } } : {})
-              }}
-              onDayPress={day => setSelected(day.dateString)}
-              theme={{ todayTextColor: '#28a745', arrowColor: '#007bff' }}
-            />
+            <View style={{ padding: 20, backgroundColor: '#f9f9f9', marginBottom: 10 }}>
+              <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>🗓️ Sélectionnez une date au format YYYY-MM-DD</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="YYYY-MM-DD (ex: 2025-12-25)"
+                value={selected}
+                onChangeText={setSelected}
+              />
+            </View>
 
             {selected && (
               <View style={styles.eventList}>
@@ -158,27 +181,4 @@ export default function MonPlanningScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingTop: 6, paddingLeft: 8 },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  switchRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 10 },
-  switchBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f1f1f1', marginHorizontal: 6 },
-  switchBtnActive: { backgroundColor: '#007bff' },
-  switchText: { color: '#333' },
-  switchTextActive: { color: '#fff' },
-  eventList: { padding: 10 },
-  eventTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  eventCard: { backgroundColor: '#f1f8ff', borderRadius: 8, padding: 10, marginBottom: 8 },
-  eventCardMedical: { backgroundColor: '#fffbe6', borderRadius: 8, padding: 10, marginBottom: 8 },
-  eventType: { fontWeight: 'bold', color: '#007bff' },
-  eventInfo: { color: '#333', marginTop: 4 },
-  noEvent: { color: '#888', fontStyle: 'italic' },
-  addMedicalBtn: { backgroundColor: '#007bff', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-  eventForm: { backgroundColor: '#fff', padding: 10, borderRadius: 8, marginTop: 8 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 8, borderRadius: 6, marginBottom: 8 },
-  saveMedicalBtn: { backgroundColor: '#28a745', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-  cancelMedicalBtn: { padding: 10, alignItems: 'center', marginTop: 8 },
-});
 

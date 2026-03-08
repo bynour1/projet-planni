@@ -1,16 +1,17 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useContext, useRef } from 'react';
+import { useRef } from 'react';
 import { Animated, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { AuthContext } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUser } from '../contexts/UserContext';
 import boxShadow from '../utils/boxShadow';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const { userRole } = useContext(AuthContext);
+  const { user } = useUser();
+  const userRole = user?.role;
   
   const MenuButton = ({ icon, title, subtitle, onPress, color = '#007AFF', badge = null }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;

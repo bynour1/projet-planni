@@ -9,36 +9,34 @@ export default function Sidebar({ visible, onClose }) {
   if (!visible) return null;
 
   const adminMenu = [
-    { icon: '🏠', label: 'Accueil', route: '/welcome' },
-    { icon: '📊', label: 'Dashboard', route: '/dashboard' },
-    { icon: '🚑', label: 'Clino_Mobile', route: '/clinique-mobile' },
+    { icon: '🏠', label: 'Accueil', route: '/unified-dashboard' },
     { icon: '📅', label: 'Calendrier', route: '/calendar' },
-    { icon: '📋', label: 'Mon Planning', route: '/mon-planning' },
-    { icon: '⚙️', label: 'Planning Admin', route: '/admin-planning' },
-    { icon: '📌', label: 'Evenements & Routines', route: '/events-routines' },
+    { icon: '📋', label: 'Planning', route: '/planning' },
     { icon: '💬', label: 'Chat', route: '/chat' },
-    { icon: '⚙️', label: 'Parametres', route: '/settings' },
+    { icon: '📌', label: 'Événements', route: '/events-routines' },
+    { icon: '🏥', label: 'ClinoMobile', route: '/clinique-mobile' },
     { icon: '👥', label: 'Utilisateurs', route: '/user-management' },
-    { icon: '🚪', label: 'Deconnexion', route: 'logout' },
+    { icon: '⚙️', label: 'Paramètres', route: '/settings' },
+    { icon: '🚪', label: 'Déconnexion', route: 'logout' },
   ];
 
-  const medecinTechnicienMenu = [
-    { icon: '🚑', label: 'Clino_Mobile', route: '/clinique-mobile' },
+  const commonMenu = [
+    { icon: '🏠', label: 'Accueil', route: '/unified-dashboard' },
     { icon: '📅', label: 'Calendrier', route: '/calendar' },
-    { icon: '📋', label: 'Mon Planning', route: '/mon-planning' },
-    { icon: '📌', label: 'Evenements & Routines', route: '/events-routines' },
+    { icon: '📋', label: 'Planning', route: '/planning' },
     { icon: '💬', label: 'Chat', route: '/chat' },
-    { icon: '⚙️', label: 'Parametres', route: '/settings' },
-    { icon: '🚪', label: 'Deconnexion', route: 'logout' },
+    { icon: '📌', label: 'Événements', route: '/events-routines' },
+    { icon: '🏥', label: 'ClinoMobile', route: '/clinique-mobile' },
+    { icon: '⚙️', label: 'Paramètres', route: '/settings' },
+    { icon: '🚪', label: 'Déconnexion', route: 'logout' },
   ];
 
   let menuItems;
   if (user?.role === 'admin') {
     menuItems = adminMenu;
-  } else if (user?.role === 'medecin' || user?.role === 'technicien') {
-    menuItems = medecinTechnicienMenu;
   } else {
-    menuItems = medecinTechnicienMenu;
+    // Médecin et Technicien utilisent le menu commun
+    menuItems = commonMenu;
   }
 
   const handleLogout = async () => {

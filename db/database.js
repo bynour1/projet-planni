@@ -38,6 +38,7 @@ async function initMySQL() {
     await pool.query('SELECT 1');
     mysqlReady = true;
     console.log('✅ MySQL connecté:', process.env.DB_NAME);
+    await initTables();
     return true;
   } catch (err) {
     console.error('❌ Erreur MySQL:', err.message);
@@ -67,12 +68,38 @@ async function execute(sql, params) {
 }
 
 // ============================================
+// INITIALISATION DES TABLES
+// ============================================
+async function initTables() {
+  // Table messages chat (persistance 30 jours)
+  await execute(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT,
+      user_name VARCHAR(255) NOT NULL,
+      user_role VARCHAR(50),
+      text TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_created_at (created_at)
+    )
+  `);
+  // Colonne created_at pour expiration automatique du planning
+  try {
+    await execute(`ALTER TABLE planning ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
+    console.log('✅ Colonne created_at ajoutée à planning');
+  } catch (e) {
+    if (e.code !== 'ER_DUP_FIELDNAME') console.warn('⚠️ planning created_at:', e.message);
+  }
+  console.log('✅ Tables initialisées');
+}
+
+// ============================================
 // EXPORTS - FONCTIONS PUBLIQUES
 // ============================================
 module.exports = {
   // Initialisation MySQL
   initMySQL,
-  
+
   // Attendre l'initialisation MySQL
   waitForInit: async () => {
     await mysqlInitPromise;
@@ -184,7 +211,7 @@ module.exports = {
   
   async findUserByContact(contact) {
     if (!contact) return null;
-    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed, mustChangePassword FROM users WHERE email = ? OR phone = ? LIMIT 1', [contact, contact]);
+    const rows = await query('SELECT id, email, phone, password, nom, prenom, role, isConfirmed, mustChangePassword FROM users WHERE email = ? LIMIT 1', [contact]);
     if (!rows || !rows[0]) return null;
     const r = rows[0];
     return { id: r.id, email: r.email, phone: r.phone || null, password: r.password || '', nom: r.nom || '', prenom: r.prenom || '', role: r.role, isConfirmed: !!r.isConfirmed, mustChangePassword: !!r.mustChangePassword };
@@ -207,35 +234,49 @@ module.exports = {
       throw err;
     }
   },
+
+  // Créer un utilisateur DIRECTEMENT avec mot de passe haché (compte confirmé)
+  async createUserDirect({ email, nom = '', prenom = '', role = 'medecin', hashedPassword = '' }) {
+    try {
+      const result = await execute(
+        'INSERT INTO users (email, phone, password, nom, prenom, role, isConfirmed, mustChangePassword) VALUES (?, ?, ?, ?, ?, ?, 1, 0)',
+        [email || null, null, hashedPassword, nom, prenom, role]
+      );
+      return result && result.insertId ? result.insertId : true;
+    } catch (err) {
+      if (err && err.code === 'ER_DUP_ENTRY') return false;
+      throw err;
+    }
+  },
   
   async confirmUser(contact) {
-    await query('UPDATE users SET isConfirmed = 1 WHERE email = ? OR phone = ?', [contact, contact]);
+    await query('UPDATE users SET isConfirmed = 1 WHERE email = ?', [contact]);
   },
   
   async saveCode(contact, code) {
-    await query(`INSERT INTO codes (contact, code) VALUES (?, ?) ON DUPLICATE KEY UPDATE code = VALUES(code)`, [contact, String(code)]);
+    await query(`INSERT INTO codes (email, code) VALUES (?, ?) ON DUPLICATE KEY UPDATE code = VALUES(code)`, [contact, String(code)]);
   },
   
   async getCode(contact) {
-    const rows = await query('SELECT code FROM codes WHERE contact = ? LIMIT 1', [contact]);
+    const rows = await query('SELECT code FROM codes WHERE email = ? LIMIT 1', [contact]);
     return rows[0] ? String(rows[0].code) : null;
   },
   
   async deleteCode(contact) {
-    await query('DELETE FROM codes WHERE contact = ?', [contact]);
+    await query('DELETE FROM codes WHERE email = ?', [contact]);
   },
   
   // Update user password and clear mustChangePassword flag
   async updateUserPassword(contact, hashedPassword) {
     console.log('🔍 updateUserPassword appelé avec:', { contact, hashedPasswordLength: hashedPassword.length });
-    const result = await execute('UPDATE users SET password = ?, mustChangePassword = 0 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
+    const result = await execute('UPDATE users SET password = ?, mustChangePassword = 0 WHERE email = ?', [hashedPassword, contact]);
     console.log('🔍 updateUserPassword résultat:', result);
     return result;
   },
   
   // Set provisional password (used when admin creates password for user)
   async setProvisionalPassword(contact, hashedPassword) {
-    await query('UPDATE users SET password = ?, mustChangePassword = 1, isConfirmed = 1 WHERE email = ? OR phone = ?', [hashedPassword, contact, contact]);
+    await query('UPDATE users SET password = ?, mustChangePassword = 1, isConfirmed = 1 WHERE email = ?', [hashedPassword, contact]);
   },
   
   // ========== CLINO MOBILE ==========
@@ -286,5 +327,40 @@ module.exports = {
   async deleteUser(userId) {
     const result = await execute('DELETE FROM users WHERE id = ?', [userId]);
     return result && result.affectedRows > 0;
+  },
+
+  // ========== MESSAGES CHAT ==========
+  async getMessages() {
+    const rows = await query(
+      'SELECT id, user_id, user_name, user_role, text, created_at FROM messages WHERE created_at >= NOW() - INTERVAL 30 DAY ORDER BY created_at ASC'
+    );
+    return rows;
+  },
+
+  async saveMessage({ userId, userName, userRole, text }) {
+    const result = await execute(
+      'INSERT INTO messages (user_id, user_name, user_role, text) VALUES (?, ?, ?, ?)',
+      [userId || null, userName, userRole || null, text]
+    );
+    return result && result.insertId ? result.insertId : null;
+  },
+
+  // ========== NETTOYAGE AUTOMATIQUE (30 JOURS) ==========
+  async deleteOldMessages() {
+    const result = await execute(
+      'DELETE FROM messages WHERE created_at < NOW() - INTERVAL 30 DAY'
+    );
+    const count = result ? result.affectedRows : 0;
+    if (count > 0) console.log(`🧹 ${count} message(s) expiré(s) supprimé(s)`);
+    return count;
+  },
+
+  async deleteOldPlanning() {
+    const result = await execute(
+      'DELETE FROM planning WHERE created_at < NOW() - INTERVAL 30 DAY'
+    );
+    const count = result ? result.affectedRows : 0;
+    if (count > 0) console.log(`🧹 ${count} entrée(s) planning expirée(s) supprimée(s)`);
+    return count;
   }
 };

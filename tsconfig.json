@@ -5,7 +5,9 @@
     "noEmit": true,
     "checkJs": false,
     "allowJs": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "typeRoots": ["./node_modules/@types"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
   "exclude": [
     "node_modules",

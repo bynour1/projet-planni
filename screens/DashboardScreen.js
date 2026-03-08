@@ -1,14 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { usePlanning } from '../contexts/PlanningContext';
 import { useUser } from '../contexts/UserContext';
@@ -163,12 +163,15 @@ export default function DashboardScreen() {
       <ScrollView style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <TouchableOpacity style={styles.menuButton} onPress={() => {}}>
+            <TouchableOpacity 
+              style={styles.menuButton} 
+              onPress={() => Alert.alert('Menu', '🚀 Navigation principale disponible')}
+            >
               <Text style={styles.menuIcon}>☰</Text>
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>📊 Dashboard</Text>
-              <Text style={styles.headerSubtitle}>Vue d&apos;ensemble du planning</Text>
+              <Text style={styles.headerTitle}>� Admin Panel</Text>
+              <Text style={styles.headerSubtitle}>Gestion complète du planning</Text>
             </View>
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutIcon}>🚪</Text>
@@ -204,32 +207,48 @@ export default function DashboardScreen() {
           <View style={styles.actionsGrid}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#007bff' }]}
-              onPress={() => {
-                const path = user?.role === 'admin' ? '/admin-planning' : user?.role === 'medecin' ? '/medecin' : '/technicien';
-                router.push(path);
-              }}
+              onPress={() => router.push('/calendar')}
             >
-              <Text style={styles.actionIcon}>➕</Text>
-              <Text style={styles.actionText}>Nouvel Événement</Text>
+              <Text style={styles.actionIcon}>📅</Text>
+              <Text style={styles.actionText}>Calendrier</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#28a745' }]}
-              onPress={() => {
-                const path = user?.role === 'admin' ? '/admin-planning' : user?.role === 'medecin' ? '/medecin' : '/technicien';
-                router.push(path);
-              }}
+              onPress={() => router.push('/user-management')}
             >
-              <Text style={styles.actionIcon}>📋</Text>
-              <Text style={styles.actionText}>Voir Planning</Text>
+              <Text style={styles.actionIcon}>👥</Text>
+              <Text style={styles.actionText}>Utilisateurs</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#ffc107' }]} onPress={() => router.push('/admin-dashboard')}>
-              <Text style={styles.actionIcon}>📊</Text>
-              <Text style={styles.actionText}>Rapports</Text>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#ffc107' }]} 
+              onPress={() => router.push('/clinique-mobile')}
+            >
+              <Text style={styles.actionIcon}>🚑</Text>
+              <Text style={styles.actionText}>Interventions</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#dc3545' }]} onPress={() => router.push('/settings')}>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#17a2b8' }]} 
+              onPress={() => router.push('/announcements')}
+            >
+              <Text style={styles.actionIcon}>📢</Text>
+              <Text style={styles.actionText}>Annonces</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#dc3545' }]} 
+              onPress={() => router.push('/chat')}
+            >
+              <Text style={styles.actionIcon}>💬</Text>
+              <Text style={styles.actionText}>Messages</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#6c757d' }]} 
+              onPress={() => router.push('/settings')}
+            >
               <Text style={styles.actionIcon}>⚙️</Text>
               <Text style={styles.actionText}>Paramètres</Text>
             </TouchableOpacity>

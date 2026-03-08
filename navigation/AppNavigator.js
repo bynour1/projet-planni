@@ -1,7 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AdminScreen from '../screens/AdminScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
-import ClinoMobile from '../screens/clinoMobile';
 import MedecinScreen from '../screens/MedecinScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import TechnicienScreen from '../screens/TechnicienScreen';
@@ -18,7 +17,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="CliniqueMobile" component={ClinoMobile} options={{ headerShown: false }} />
+      <Stack.Screen name="CliniqueMobile" component={CliniqueMobileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Medecin" component={MedecinScreen} />
       <Stack.Screen name="Technicien" component={TechnicienScreen} />
       <Stack.Screen name="Planning" component={PlanningScreen} options={{ headerShown: false }} />

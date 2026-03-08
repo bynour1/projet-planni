@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -105,13 +105,16 @@ export default function ParticipantDashboardScreen() {
     <>
       <ScrollView style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity style={styles.menuButton} onPress={() => {}}>
+          <View style={styles.headerTop}> 
+            <TouchableOpacity 
+              style={styles.menuButton} 
+              onPress={() => Alert.alert('Menu', '🚀 Navigation principale disponible')}
+            >
               <Text style={styles.menuIcon}>☰</Text>
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>📊 Mon Dashboard</Text>
-              <Text style={styles.headerSubtitle}>Vue d&apos;ensemble de vos activités</Text>
+              <Text style={styles.headerTitle}>� Bienvenue {user?.prenom}!</Text>
+              <Text style={styles.headerSubtitle}>{user?.role === 'medecin' ? '👨‍⚕️ Médecin' : user?.role === 'technicien' ? '👷 Technicien' : '👤 Participant'}</Text>
             </View>
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutIcon}>🚪</Text>
@@ -119,9 +122,20 @@ export default function ParticipantDashboardScreen() {
           </View>
         </View>
 
+        <View style={styles.quickInfo}>
+          <View style={styles.infoBox}>
+            <Text style={styles.infoLabel}>Nom complet</Text>
+            <Text style={styles.infoValue}>{user?.prenom} {user?.nom}</Text>
+          </View>
+          <View style={styles.infoBox}>
+            <Text style={styles.infoLabel}>Contact</Text>
+            <Text style={styles.infoValue}>{user?.email || user?.phone || 'N/A'}</Text>
+          </View>
+        </View>
+
         <View style={styles.statsGrid}>
-          <StatCard title="Mes Événements Cette Semaine" value={stats.myEventsThisWeek} color="#007bff" icon="📅" />
-          <StatCard title="Mes Événements Ce Mois" value={stats.myEventsThisMonth} color="#28a745" icon="📆" />
+          <StatCard title="Cette Semaine" value={stats.myEventsThisWeek} color="#007bff" icon="📅" />
+          <StatCard title="Ce Mois" value={stats.myEventsThisMonth} color="#28a745" icon="📆" />
         </View>
 
         <View style={styles.section}>
@@ -148,26 +162,42 @@ export default function ParticipantDashboardScreen() {
           <View style={styles.actionsGrid}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#007bff' }]}
-              onPress={() => router.push('/mon-planning')}
-            >
-              <Text style={styles.actionIcon}>📋</Text>
-              <Text style={styles.actionText}>Mon Planning</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: '#28a745' }]}
               onPress={() => router.push('/calendar')}
             >
               <Text style={styles.actionIcon}>📅</Text>
               <Text style={styles.actionText}>Calendrier</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#ffc107' }]} onPress={() => router.push('/chat')}>
+            {(user?.role === 'medecin' || user?.role === 'technicien') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#28a745' }]}
+                onPress={() => router.push('/clinique-mobile')}
+              >
+                <Text style={styles.actionIcon}>🚑</Text>
+                <Text style={styles.actionText}>Interventions</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#ffc107' }]} 
+              onPress={() => router.push('/chat')}
+            >
               <Text style={styles.actionIcon}>💬</Text>
-              <Text style={styles.actionText}>Chat</Text>
+              <Text style={styles.actionText}>Messages</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#dc3545' }]} onPress={() => router.push('/settings')}>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#17a2b8' }]} 
+              onPress={() => router.push('/announcements')}
+            >
+              <Text style={styles.actionIcon}>📢</Text>
+              <Text style={styles.actionText}>Annonces</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#6c757d' }]} 
+              onPress={() => router.push('/settings')}
+            >
               <Text style={styles.actionIcon}>⚙️</Text>
               <Text style={styles.actionText}>Paramètres</Text>
             </TouchableOpacity>
@@ -230,6 +260,36 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: "#666",
+  },
+  quickInfo: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 10,
+  },
+  infoBox: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#007bff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: '#999',
+    fontWeight: '600',
+  },
+  infoValue: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '600',
+    marginTop: 4,
   },
   statsGrid: {
     flexDirection: "row",

@@ -26,7 +26,7 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, { cors: { origin: '*' } });
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8082; // Port du serveur (respecte .env ou start-server.js)
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8083; // Port du serveur (respecte .env ou start-server.js)
 const JWT_SECRET = process.env.JWT_SECRET || 'votre_secret_jwt_changez_moi_en_production';
 
 // Middlewares
@@ -181,7 +181,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Utility: send confirmation either by email or by SMS (Twilio)
+// Utility: send confirmation by email only
 async function sendConfirmationContact(to, code, userInfo = {}) {
   const from = process.env.EMAIL_FROM || (process.env.EMAIL_USER || process.env.SMTP_USER || 'no-reply@planning.com');
   const isPasswordReset = userInfo.isPasswordReset || false;
@@ -249,75 +249,7 @@ async function sendConfirmationContact(to, code, userInfo = {}) {
     });
   }
 
-  // else assume phone number -> try Telegram Bot first, then Twilio
-  
-  // Toujours afficher le code dans la console pour le développement
-  console.log('\n' + '='.repeat(60));
-  console.log('📱 CODE SMS/TELEGRAM GÉNÉRÉ');
-  console.log('='.repeat(60));
-  console.log(`Destinataire : ${to}`);
-  console.log(`Code        : ${code}`);
-  console.log(`Nom         : ${userInfo.prenom || ''} ${userInfo.nom || ''}`);
-  console.log('='.repeat(60) + '\n');
-  
-  // Essayer d'abord Telegram (GRATUIT)
-  const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
-  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
-  
-  if (telegramBotToken && telegramChatId) {
-    try {
-      const TelegramBot = require('node-telegram-bot-api');
-      const bot = new TelegramBot(telegramBotToken);
-      
-      const isPasswordReset = userInfo.isPasswordReset || false;
-      const title = isPasswordReset ? '🔒 *Réinitialisation de mot de passe*' : '🏥 *Planning Médical*';
-      const instruction = isPasswordReset 
-        ? 'Utilisez ce code pour réinitialiser votre mot de passe.'
-        : 'Communiquez ce code à l\'administrateur pour activer votre compte.';
-      
-      const message = `${title}\n\n` +
-                     `👤 ${userInfo.prenom || ''} ${userInfo.nom || ''}\n` +
-                     `📱 ${to}\n\n` +
-                     `🔐 *Code ${isPasswordReset ? 'de réinitialisation' : 'de confirmation'} :*\n` +
-                     `\`${code}\`\n\n` +
-                     `${instruction}`;
-      
-      await bot.sendMessage(telegramChatId, message, { parse_mode: 'Markdown' });
-      console.log('✅ Message envoyé avec succès via Telegram Bot (GRATUIT)\n');
-      return { success: true, method: 'telegram' };
-    } catch (telegramErr) {
-      console.error('❌ Erreur Telegram:', telegramErr.message);
-      console.log('⏭️  Tentative avec Twilio...\n');
-    }
-  }
-  
-  // Sinon essayer Twilio (PAYANT)
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-  
-  if (sid && token && fromNumber) {
-    try {
-      const twilio = require('twilio')(sid, token);
-      const result = await twilio.messages.create({ 
-        body: `Planning Médical - Votre code de confirmation est : ${code}\n\nCommuniquez ce code à l'administrateur.`, 
-        from: fromNumber, 
-        to 
-      });
-      console.log('✅ SMS envoyé avec succès via Twilio\n');
-      return result;
-    } catch (twilioErr) {
-      console.error('❌ Erreur Twilio:', twilioErr.message);
-      console.log('💡 Le code est affiché ci-dessus pour utilisation manuelle\n');
-      throw twilioErr;
-    }
-  }
-  
-  // Aucun service configuré
-  console.log('⚠️  Aucun service SMS configuré - Le code est affiché ci-dessus');
-  console.log('💡 Options GRATUITES :');
-  console.log('   1. Telegram Bot (RECOMMANDÉ) - Consultez GUIDE_TELEGRAM.md');
-  console.log('   2. WhatsApp Business API');
+  // Email only (SMS disabled)
   console.log('📖 Consultez CONFIGURATION_SMS.md pour plus d\'informations\n');
   const err = new Error('No SMS service configured - Code shown in console');
   err.code = 'NO_SMS_SERVICE';
@@ -436,12 +368,12 @@ app.post('/send-code', async (req, res) => {
   await db.saveCode(contact, code);
 
   try {
-    // Try to send through configured transporters (email or Twilio). If neither configured, return dev code.
+    // Send through email transporter
     try {
       await sendConfirmationContact(contact, code);
       return res.json({ success: true, message: 'Code envoyé' });
     } catch (sendErr) {
-      // If Twilio not configured or mailer not configured, fall back to dev-mode return
+      // If email not configured, warn but continue
       console.warn('Sending confirmation failed or not configured, falling back to dev-mode:', sendErr && sendErr.message);
       return res.json({ success: true, message: 'Code (dev) généré', code });
     }
@@ -459,38 +391,75 @@ app.post('/send-code', async (req, res) => {
 // Admin: invite a user (create user entry without confirming) and send code
 // TODO: Ajouter authentification admin quand le frontend aura le token JWT
 app.post('/invite-user', async (req, res) => {
-  // Accept email and phone separately + sendCodeBy choice
-  const { email = '', phone = '', nom = '', prenom = '', role = 'medecin', sendCodeBy = 'email' } = req.body;
+  // Accept email only (SMS disabled)
+  const { email = '', nom = '', prenom = '', role = 'medecin' } = req.body;
   
   if (!email || !email.includes('@')) return res.status(400).json({ success: false, message: 'Email invalide' });
-  
-  // Validate phone if provided or if sendCodeBy is phone
-  if (sendCodeBy === 'phone' || phone) {
-    if (!phone) return res.status(400).json({ success: false, message: 'Téléphone requis pour l\'envoi par SMS' });
-    const phoneRaw = String(phone).replace(/\s+/g, '');
-    if (!/^\+?[0-9]{8,15}$/.test(phoneRaw)) return res.status(400).json({ success: false, message: 'Numéro de téléphone invalide' });
-  }
 
-  const added = await db.addUser({ email, phone: phone || null, nom, prenom, role });
+  const added = await db.addUser({ email, phone: null, nom, prenom, role });
   if (!added) return res.status(400).json({ success: false, message: 'Utilisateur existe déjà' });
 
-  // Choose contact based on sendCodeBy
-  const contactToSend = sendCodeBy === 'phone' ? phone : email;
+  // Always send by email
+  const contactToSend = email;
   const code = String(Math.floor(100000 + Math.random() * 900000));
   await db.saveCode(contactToSend, code);
   
   try {
     try {
       await sendConfirmationContact(contactToSend, code, { nom, prenom, role });
-      const medium = sendCodeBy === 'phone' ? 'SMS' : 'email';
-      return res.json({ success: true, message: `Invité créé et code envoyé par ${medium}`, userId: added });
+      // Retourner le code pour que l'admin puisse confirmer
+      return res.json({ success: true, message: 'Invité créé et code envoyé par email', userId: added, code });
     } catch (sendErr) {
       console.warn('Send invite failed or not configured (dev-mode):', sendErr && sendErr.message);
+      // Retourner aussi le code en cas d'erreur d'envoi
       return res.json({ success: true, message: 'Invité (dev) créé, code généré', code, userId: added });
     }
   } catch (err) {
     console.error('Erreur invite/send confirmation', err);
     return res.status(500).json({ success: false, message: 'Erreur lors de l\'invitation' });
+  }
+});
+
+// Create user DIRECTLY with password (account immediately active - no code needed)
+app.post('/create-user-direct', async (req, res) => {
+  const { email = '', nom = '', prenom = '', role = 'medecin', password = '' } = req.body;
+  
+  if (!email || !email.includes('@')) return res.status(400).json({ success: false, message: 'Email invalide' });
+  if (!password || password.length < 6) return res.status(400).json({ success: false, message: 'Mot de passe invalide (min 6 caractères)' });
+  
+  try {
+    // Check if user already exists
+    const existing = await db.findUserByContact(email);
+    if (existing) return res.status(400).json({ success: false, message: 'Cet email existe déjà' });
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create user with password and mark as confirmed immediately
+    const userId = await db.createUserDirect({ 
+      email, 
+      nom, 
+      prenom, 
+      role, 
+      hashedPassword 
+    });
+    
+    if (!userId) return res.status(400).json({ success: false, message: 'Impossible de créer l\'utilisateur' });
+    
+    console.log(`✅ User créé directement: ${email} (${role})`);
+    
+    return res.json({ 
+      success: true, 
+      message: `Utilisateur créé et activé - Peut se connecter immédiatement`,
+      email,
+      userId
+    });
+  } catch (err) {
+    console.error('Erreur création directe:', err);
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ success: false, message: 'Cet email existe déjà' });
+    }
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
@@ -777,7 +746,7 @@ app.post('/forgot-password', async (req, res) => {
     // Sauvegarder le code dans la table codes
     await db.saveCode(contact, resetCode);
     
-    // Envoyer le code par email ou Telegram
+    // Send code by email only
     try {
       await sendConfirmationContact(contact, resetCode, { 
         nom: user.nom, 
@@ -786,7 +755,7 @@ app.post('/forgot-password', async (req, res) => {
         isPasswordReset: true 
       });
       
-      const method = contact.includes('@') ? 'email' : 'Telegram/SMS';
+      const method = 'email'; // SMS disabled
       return res.json({ 
         success: true, 
         message: `Code de réinitialisation envoyé par ${method}`,
@@ -932,10 +901,118 @@ app.delete('/clino-mobile/:id', adminOnly, async (req, res) => {
   }
 });
 
+// ===== PARTICIPANTS CRUD ENDPOINTS =====
+// Update participant (admin only)
+app.put('/update-user/:id', adminOnly, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { nom, prenom, phone, role } = req.body;
+
+    if (!nom || !prenom) {
+      return res.status(400).json({ success: false, message: 'Nom et prénom requis' });
+    }
+
+    const updated = await db.updateUser(userId, { nom, prenom, phone, role });
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    res.json({ success: true, message: 'Participant modifié avec succès' });
+  } catch (err) {
+    console.error('[/update-user] Error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
+  }
+});
+
+// Delete participant (admin only)
+app.delete('/delete-user/:id', adminOnly, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+
+    const deleted = await db.deleteUser(userId);
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    res.json({ success: true, message: 'Participant supprimé avec succès' });
+  } catch (err) {
+    console.error('[/delete-user] Error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
+  }
+});
+
+// ===== MESSAGES CHAT =====
+app.get('/messages', authenticateToken, async (req, res) => {
+  try {
+    const messages = await db.getMessages();
+    res.json({ success: true, messages });
+  } catch (err) {
+    console.error('[/messages GET] Error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
+  }
+});
+
+app.post('/messages', authenticateToken, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Message vide.' });
+    }
+    const userInfo = await db.findUserByContact(req.user.email);
+    const userName = userInfo
+      ? `${userInfo.prenom || ''} ${userInfo.nom || ''}`.trim() || req.user.email
+      : req.user.email;
+    const id = await db.saveMessage({
+      userId: req.user.id,
+      userName,
+      userRole: req.user.role,
+      text: text.trim()
+    });
+    const message = {
+      id,
+      user_id: req.user.id,
+      user_name: userName,
+      user_role: req.user.role,
+      text: text.trim(),
+      created_at: new Date().toISOString()
+    };
+    io.emit('chat:message', message);
+    res.json({ success: true, message });
+  } catch (err) {
+    console.error('[/messages POST] Error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('Socket connected:', socket.id);
+  socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
+});
+
+// ===== NETTOYAGE AUTOMATIQUE TOUTES LES HEURES =====
+const ONE_HOUR = 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    await db.deleteOldMessages();
+    await db.deleteOldPlanning();
+  } catch (err) {
+    console.error('❌ Erreur cleanup automatique:', err.message);
+  }
+}, ONE_HOUR);
+
 // Wait for DB initialization before starting server
 (async () => {
   await db.waitForInit();
-  
+  // Nettoyage initial au démarrage
+  try {
+    await db.deleteOldMessages();
+    await db.deleteOldPlanning();
+  } catch (err) {
+    console.error('❌ Erreur cleanup démarrage:', err.message);
+  }
+
   // Bind explicitly to 0.0.0.0 so the server is reachable from other network interfaces
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Serveur en cours d'exécution sur http://localhost:${PORT}`);
@@ -953,52 +1030,5 @@ app.delete('/clino-mobile/:id', adminOnly, async (req, res) => {
     } catch (e) {
       // ignore
     }
-  });
-
-  // ===== PARTICIPANTS CRUD ENDPOINTS =====
-  // Update participant (admin only)
-  app.put('/update-user/:id', adminOnly, async (req, res) => {
-    try {
-      const userId = parseInt(req.params.id, 10);
-      const { nom, prenom, phone, role } = req.body;
-
-      if (!nom || !prenom) {
-        return res.status(400).json({ success: false, message: 'Nom et prénom requis' });
-      }
-
-      const updated = await db.updateUser(userId, { nom, prenom, phone, role });
-
-      if (!updated) {
-        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-      }
-
-      res.json({ success: true, message: 'Participant modifié avec succès' });
-    } catch (err) {
-      console.error('[/update-user] Error:', err);
-      res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
-    }
-  });
-
-  // Delete participant (admin only)
-  app.delete('/delete-user/:id', adminOnly, async (req, res) => {
-    try {
-      const userId = parseInt(req.params.id, 10);
-
-      const deleted = await db.deleteUser(userId);
-
-      if (!deleted) {
-        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-      }
-
-      res.json({ success: true, message: 'Participant supprimé avec succès' });
-    } catch (err) {
-      console.error('[/delete-user] Error:', err);
-      res.status(500).json({ success: false, message: 'Erreur serveur: ' + err.message });
-    }
-  });
-
-  io.on('connection', (socket) => {
-    console.log('Socket connected:', socket.id);
-    socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
   });
 })();

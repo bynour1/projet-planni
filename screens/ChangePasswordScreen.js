@@ -64,21 +64,8 @@ const response = await fetch(`${API_BASE}/change-password`, {
             {
               text: 'OK',
               onPress: () => {
-                // Rediriger vers l'écran approprié selon le rôle
-                const user = route.params?.user;
-                if (user) {
-                  if (user.role === 'admin') {
-                    navigation.replace('Admin');
-                  } else if (user.role === 'medecin') {
-                    navigation.replace('Medecin');
-                  } else if (user.role === 'technicien') {
-                    navigation.replace('Technicien');
-                  } else {
-                    navigation.replace('Welcome');
-                  }
-                } else {
-                  navigation.replace('Welcome');
-                }
+                // Rediriger vers le dashboard unifié pour tous les rôles
+                navigation.replace('UnifiedDashboard');
               }
             }
           ]

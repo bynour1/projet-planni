@@ -3,7 +3,6 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Calendar } from 'react-native-calendars';
 import { useRoutines } from "../contexts/RoutineContext";
 import { useTheme } from "../contexts/ThemeContext";
 import boxShadow from "../utils/boxShadow";
@@ -11,17 +10,17 @@ import boxShadow from "../utils/boxShadow";
 export default function EventsRoutinesScreen() {
   const { theme } = useTheme();
   const { routines, addRoutine, deleteRoutine } = useRoutines();
-  const [activeTab, setActiveTab] = useState('events'); // 'events' or 'routines'
+  const [activeTab, setActiveTab] = useState('recurring'); // 'punctual' or 'recurring'
 
-  // Events state
+  // Punctual events state
   const [events, setEvents] = useState([]);
   const [form, setForm] = useState({ titre: '', type: '', date: '', lieu: '' });
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // Routines state
+  // Recurring events state (from Routines context)
   const [modalVisible, setModalVisible] = useState(false);
-  const [routineForm, setRoutineForm] = useState({
+  const [eventForm, setEventForm] = useState({
     title: "",
     description: "",
     startDate: new Date(),
@@ -45,8 +44,8 @@ export default function EventsRoutinesScreen() {
     { id: "other", label: "Autre", icon: "📌", color: "#6c757d" },
   ];
 
-  // Events functions
-  const handleAddEvent = () => {
+  // Punctual events functions
+  const handleAddPunctualEvent = () => {
     if (!form.titre || !form.type || !form.date || !form.lieu) return;
     const normalized = normalizeDate(form.date);
     const toSave = { ...form, date: normalized };
@@ -77,23 +76,23 @@ export default function EventsRoutinesScreen() {
     return marks;
   }, [events, selectedDate]);
 
-  // Routines functions
-  const handleAddRoutine = async () => {
-    if (!routineForm.title.trim()) {
+  // Recurring events functions
+  const handleAddRecurringEvent = async () => {
+    if (!eventForm.title.trim()) {
       alert("Veuillez entrer un titre");
       return;
     }
 
     await addRoutine({
-      ...routineForm,
-      startDate: routineForm.startDate.toISOString(),
-      endDate: routineForm.endDate.toISOString(),
-      startTime: format(routineForm.startTime, "HH:mm"),
-      endTime: format(routineForm.endTime, "HH:mm"),
+      ...eventForm,
+      startDate: eventForm.startDate.toISOString(),
+      endDate: eventForm.endDate.toISOString(),
+      startTime: format(eventForm.startTime, "HH:mm"),
+      endTime: format(eventForm.endTime, "HH:mm"),
     });
 
     setModalVisible(false);
-    setRoutineForm({
+    setEventForm({
       title: "",
       description: "",
       startDate: new Date(),
@@ -105,7 +104,7 @@ export default function EventsRoutinesScreen() {
     });
   };
 
-  const handleDeleteRoutine = (id) => {
+  const handleDeleteEvent = (id) => {
     deleteRoutine(id);
   };
 
@@ -117,9 +116,9 @@ export default function EventsRoutinesScreen() {
 
     if (selectedDate) {
       if (type === "start") {
-        setRoutineForm({ ...routineForm, startDate: selectedDate });
+        setEventForm({ ...eventForm, startDate: selectedDate });
       } else {
-        setRoutineForm({ ...routineForm, endDate: selectedDate });
+        setEventForm({ ...eventForm, endDate: selectedDate });
       }
     }
   };
@@ -132,9 +131,9 @@ export default function EventsRoutinesScreen() {
 
     if (selectedTime) {
       if (type === "start") {
-        setRoutineForm({ ...routineForm, startTime: selectedTime });
+        setEventForm({ ...eventForm, startTime: selectedTime });
       } else {
-        setRoutineForm({ ...routineForm, endTime: selectedTime });
+        setEventForm({ ...eventForm, endTime: selectedTime });
       }
     }
   };
@@ -143,49 +142,34 @@ export default function EventsRoutinesScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.title}>📅 Événements & Routines</Text>
+      <Text style={styles.title}>📅 Événements</Text>
 
       {/* Tab Switcher */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'events' && styles.tabActive]}
-          onPress={() => setActiveTab('events')}
+          style={[styles.tab, activeTab === 'punctual' && styles.tabActive]}
+          onPress={() => setActiveTab('punctual')}
         >
-          <Text style={[styles.tabText, activeTab === 'events' && styles.tabTextActive]}>Événements</Text>
+          <Text style={[styles.tabText, activeTab === 'punctual' && styles.tabTextActive]}>Événements ponctuels</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'routines' && styles.tabActive]}
-          onPress={() => setActiveTab('routines')}
+          style={[styles.tab, activeTab === 'recurring' && styles.tabActive]}
+          onPress={() => setActiveTab('recurring')}
         >
-          <Text style={[styles.tabText, activeTab === 'routines' && styles.tabTextActive]}>Routines</Text>
+          <Text style={[styles.tabText, activeTab === 'recurring' && styles.tabTextActive]}>Événements réguliers</Text>
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'events' ? (
+      {activeTab === 'punctual' ? (
         <>
           <Text style={styles.subtitle}>Ajoutez ici les formations, congrès, soutenances, etc.</Text>
 
           <TextInput style={styles.input} placeholder="Titre" value={form.titre} onChangeText={v => setForm(f => ({ ...f, titre: v }))} />
           <TextInput style={styles.input} placeholder="Type (formation, congrès...)" value={form.type} onChangeText={v => setForm(f => ({ ...f, type: v }))} />
-          <TouchableOpacity style={[styles.input, styles.dateInput]} onPress={() => setCalendarVisible(!calendarVisible)}>
-            <Text style={{ color: form.date ? '#000' : '#888' }}>{form.date ? form.date : 'Date (ex: 12/12/2025 or select via calendrier)'}</Text>
-          </TouchableOpacity>
-
-          {calendarVisible && (
-            <View style={styles.calendarWrapper}>
-              <Calendar
-                onDayPress={day => {
-                  setSelectedDate(day.dateString);
-                  setForm(f => ({ ...f, date: day.dateString }));
-                  setCalendarVisible(false);
-                }}
-                markedDates={markedDates}
-              />
-            </View>
-          )}
+          <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" value={form.date} onChangeText={v => setForm(f => ({ ...f, date: v }))} />
           <TextInput style={styles.input} placeholder="Lieu" value={form.lieu} onChangeText={v => setForm(f => ({ ...f, lieu: v }))} />
 
-          <TouchableOpacity style={styles.addButton} onPress={handleAddEvent}>
+          <TouchableOpacity style={styles.addButton} onPress={handleAddPunctualEvent}>
             <Text style={styles.addButtonText}>Ajouter Événement</Text>
           </TouchableOpacity>
 
@@ -206,30 +190,30 @@ export default function EventsRoutinesScreen() {
         </>
       ) : (
         <>
-          <Text style={styles.subtitle}>Créez des routines récurrentes</Text>
+          <Text style={styles.subtitle}>Créez des événements réguliers</Text>
 
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setModalVisible(true)}
           >
-            <Text style={styles.addButtonText}>+ Nouvelle Routine</Text>
+            <Text style={styles.addButtonText}>+ Nouvel Événement</Text>
           </TouchableOpacity>
 
           <View style={styles.content}>
             {routines.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyIcon}>📋</Text>
-                <Text style={styles.emptyText}>Aucune routine créée</Text>
+                <Text style={styles.emptyText}>Aucun événement créé</Text>
                 <Text style={styles.emptySubtext}>
-                  Appuyez sur le bouton ci-dessus pour créer votre première routine
+                  Appuyez sur le bouton ci-dessus pour créer votre premier événement
                 </Text>
               </View>
             ) : (
-              routines.map((routine) => {
-                const category = categories.find((c) => c.id === routine.category);
+              routines.map((event) => {
+                const category = categories.find((c) => c.id === event.category);
                 return (
                   <View
-                    key={routine.id}
+                    key={event.id}
                     style={[
                       styles.routineCard,
                       { borderLeftColor: category?.color || theme.primary },
@@ -238,15 +222,15 @@ export default function EventsRoutinesScreen() {
                     <View style={styles.routineHeader}>
                       <Text style={styles.routineIcon}>{category?.icon}</Text>
                       <View style={styles.routineInfo}>
-                        <Text style={styles.routineTitle}>{routine.title}</Text>
-                        {routine.description && (
+                        <Text style={styles.routineTitle}>{event.title}</Text>
+                        {event.description && (
                           <Text style={styles.routineDescription}>
-                            {routine.description}
+                            {event.description}
                           </Text>
                         )}
                       </View>
                       <TouchableOpacity
-                        onPress={() => handleDeleteRoutine(routine.id)}
+                        onPress={() => handleDeleteEvent(event.id)}
                         style={styles.deleteButton}
                       >
                         <Text style={styles.deleteButtonText}>🗑️</Text>
@@ -255,11 +239,11 @@ export default function EventsRoutinesScreen() {
 
                     <View style={styles.routineDetails}>
                       <Text style={styles.routineDetail}>
-                        📅 {format(new Date(routine.startDate), "dd MMM", { locale: fr })} -{" "}
-                        {format(new Date(routine.endDate), "dd MMM yyyy", { locale: fr })}
+                        📅 {format(new Date(event.startDate), "dd MMM", { locale: fr })} -{" "}
+                        {format(new Date(event.endDate), "dd MMM yyyy", { locale: fr })}
                       </Text>
                       <Text style={styles.routineDetail}>
-                        ⏰ {routine.startTime} - {routine.endTime}
+                        ⏰ {event.startTime} - {event.endTime}
                       </Text>
                     </View>
                   </View>
@@ -272,7 +256,7 @@ export default function EventsRoutinesScreen() {
           {modalVisible && (
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Nouvelle Routine</Text>
+                <Text style={styles.modalTitle}>Nouvel Événement</Text>
 
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <Text style={styles.label}>Titre *</Text>
@@ -280,17 +264,17 @@ export default function EventsRoutinesScreen() {
                     style={styles.input}
                     placeholder="Ex: Réunion hebdomadaire"
                     placeholderTextColor={theme.textTertiary}
-                    value={routineForm.title}
-                    onChangeText={(text) => setRoutineForm({ ...routineForm, title: text })}
+                    value={eventForm.title}
+                    onChangeText={(text) => setEventForm({ ...eventForm, title: text })}
                   />
 
                   <Text style={styles.label}>Description</Text>
                   <TextInput
                     style={[styles.input, styles.textArea]}
-                    placeholder="Détails de la routine..."
+                    placeholder="Détails de l'événement..."
                     placeholderTextColor={theme.textTertiary}
-                    value={routineForm.description}
-                    onChangeText={(text) => setRoutineForm({ ...routineForm, description: text })}
+                    value={eventForm.description}
+                    onChangeText={(text) => setEventForm({ ...eventForm, description: text })}
                     multiline
                     numberOfLines={3}
                   />
@@ -302,18 +286,18 @@ export default function EventsRoutinesScreen() {
                         key={cat.id}
                         style={[
                           styles.categoryButton,
-                          routineForm.category === cat.id && {
+                          eventForm.category === cat.id && {
                             backgroundColor: cat.color,
                           },
                         ]}
                         onPress={() =>
-                          setRoutineForm({ ...routineForm, category: cat.id, color: cat.color })
+                          setEventForm({ ...eventForm, category: cat.id, color: cat.color })
                         }
                       >
                         <Text
                           style={[
                             styles.categoryIcon,
-                            routineForm.category === cat.id && styles.categoryIconActive,
+                            eventForm.category === cat.id && styles.categoryIconActive,
                           ]}
                         >
                           {cat.icon}
@@ -321,7 +305,7 @@ export default function EventsRoutinesScreen() {
                         <Text
                           style={[
                             styles.categoryLabel,
-                            routineForm.category === cat.id && styles.categoryLabelActive,
+                            eventForm.category === cat.id && styles.categoryLabelActive,
                           ]}
                         >
                           {cat.label}
@@ -336,13 +320,13 @@ export default function EventsRoutinesScreen() {
                     onPress={() => setShowStartDatePicker(true)}
                   >
                     <Text style={styles.dateButtonText}>
-                      📅 {format(routineForm.startDate, "dd MMMM yyyy", { locale: fr })}
+                      📅 {format(eventForm.startDate, "dd MMMM yyyy", { locale: fr })}
                     </Text>
                   </TouchableOpacity>
 
                   {showStartDatePicker && (
                     <DateTimePicker
-                      value={routineForm.startDate}
+                      value={eventForm.startDate}
                       mode="date"
                       display={Platform.OS === "ios" ? "spinner" : "default"}
                       onChange={(e, date) => onChangeDate(e, date, "start")}
@@ -355,17 +339,17 @@ export default function EventsRoutinesScreen() {
                     onPress={() => setShowEndDatePicker(true)}
                   >
                     <Text style={styles.dateButtonText}>
-                      📅 {format(routineForm.endDate, "dd MMMM yyyy", { locale: fr })}
+                      📅 {format(eventForm.endDate, "dd MMMM yyyy", { locale: fr })}
                     </Text>
                   </TouchableOpacity>
 
                   {showEndDatePicker && (
                     <DateTimePicker
-                      value={routineForm.endDate}
+                      value={eventForm.endDate}
                       mode="date"
                       display={Platform.OS === "ios" ? "spinner" : "default"}
                       onChange={(e, date) => onChangeDate(e, date, "end")}
-                      minimumDate={routineForm.startDate}
+                      minimumDate={eventForm.startDate}
                     />
                   )}
 
@@ -375,13 +359,13 @@ export default function EventsRoutinesScreen() {
                     onPress={() => setShowStartTimePicker(true)}
                   >
                     <Text style={styles.dateButtonText}>
-                      ⏰ {format(routineForm.startTime, "HH:mm")}
+                      ⏰ {format(eventForm.startTime, "HH:mm")}
                     </Text>
                   </TouchableOpacity>
 
                   {showStartTimePicker && (
                     <DateTimePicker
-                      value={routineForm.startTime}
+                      value={eventForm.startTime}
                       mode="time"
                       is24Hour={true}
                       display={Platform.OS === "ios" ? "spinner" : "default"}
@@ -395,13 +379,13 @@ export default function EventsRoutinesScreen() {
                     onPress={() => setShowEndTimePicker(true)}
                   >
                     <Text style={styles.dateButtonText}>
-                      ⏰ {format(routineForm.endTime, "HH:mm")}
+                      ⏰ {format(eventForm.endTime, "HH:mm")}
                     </Text>
                   </TouchableOpacity>
 
                   {showEndTimePicker && (
                     <DateTimePicker
-                      value={routineForm.endTime}
+                      value={eventForm.endTime}
                       mode="time"
                       is24Hour={true}
                       display={Platform.OS === "ios" ? "spinner" : "default"}
@@ -419,7 +403,7 @@ export default function EventsRoutinesScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.saveButton]}
-                    onPress={handleAddRoutine}
+                    onPress={handleAddRecurringEvent}
                   >
                     <Text style={styles.modalButtonText}>Créer</Text>
                   </TouchableOpacity>

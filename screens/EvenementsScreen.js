@@ -1,7 +1,19 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Calendar } from 'react-native-calendars';
 import { useUser } from "../contexts/UserContext";
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fffbe6' },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#856404', marginBottom: 6, paddingTop: 6, paddingLeft: 4 },
+  subtitle: { color: '#555', marginBottom: 12, paddingLeft: 4 },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 },
+  dateInput: { justifyContent: 'center' },
+  addButton: { backgroundColor: '#007bff', borderRadius: 8, padding: 10, marginTop: 4, alignItems: 'center' },
+  addButtonText: { color: '#fff', fontWeight: 'bold' },
+  eventCard: { backgroundColor: '#f1f8ff', borderRadius: 8, padding: 10, marginBottom: 8 },
+  eventTitle: { fontWeight: 'bold', color: '#007bff', marginBottom: 4 },
+  readOnlyMessage: { backgroundColor: '#fff3cd', color: '#856404', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 14 },
+});
 
 export default function EvenementsScreen() {
   const { user } = useUser();
@@ -10,7 +22,6 @@ export default function EvenementsScreen() {
 
   const [events, setEvents] = useState([]);
   const [form, setForm] = useState({ titre: '', type: '', date: '', lieu: '' });
-  const [calendarVisible, setCalendarVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
 
   const handleAdd = () => {
@@ -57,23 +68,7 @@ export default function EvenementsScreen() {
         <>
           <TextInput style={styles.input} placeholder="Titre" value={form.titre} onChangeText={v => setForm(f => ({ ...f, titre: v }))} />
           <TextInput style={styles.input} placeholder="Type (formation, congrès...)" value={form.type} onChangeText={v => setForm(f => ({ ...f, type: v }))} />
-          <TouchableOpacity style={[styles.input, styles.dateInput]} onPress={() => setCalendarVisible(!calendarVisible)}>
-            <Text style={{ color: form.date ? '#000' : '#888' }}>{form.date ? form.date : 'Date (ex: 12/12/2025 or select via calendrier)'}</Text>
-          </TouchableOpacity>
-
-          {calendarVisible && (
-            <View style={styles.calendarWrapper}>
-              <Calendar
-                onDayPress={day => {
-                  // day.dateString is YYYY-MM-DD
-                  setSelectedDate(day.dateString);
-                  setForm(f => ({ ...f, date: day.dateString }));
-                  setCalendarVisible(false);
-                }}
-                markedDates={markedDates}
-              />
-            </View>
-          )}
+          <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" value={form.date} onChangeText={v => setForm(f => ({ ...f, date: v }))} />
           <TextInput style={styles.input} placeholder="Lieu" value={form.lieu} onChangeText={v => setForm(f => ({ ...f, lieu: v }))} />
 
           <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
@@ -104,16 +99,3 @@ export default function EvenementsScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fffbe6' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#856404', marginBottom: 6, paddingTop: 6, paddingLeft: 4 },
-  subtitle: { color: '#555', marginBottom: 12, paddingLeft: 4 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 },
-  addButton: { backgroundColor: '#007bff', borderRadius: 8, padding: 10, marginTop: 4, alignItems: 'center' },
-  addButtonText: { color: '#fff', fontWeight: 'bold' },
-  eventCard: { backgroundColor: '#f1f8ff', borderRadius: 8, padding: 10, marginBottom: 8 },
-  eventTitle: { fontWeight: 'bold', color: '#007bff', marginBottom: 4 },
-  readOnlyMessage: { backgroundColor: '#fff3cd', color: '#856404', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 14 },
-  calendarWrapper: { marginBottom: 12 },
-});

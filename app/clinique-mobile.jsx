@@ -1,12 +1,12 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UserProvider } from '../contexts/UserContext';
-import ClinoMobile from '../screens/clinoMobile';
+import CliniqueMobileScreen from '../screens/CliniqueMobileScreen';
 
 export default function CliniqueMobilePage() {
   return (
     <UserProvider>
       <SafeAreaProvider>
-        <ClinoMobile />
+        <CliniqueMobileScreen />
       </SafeAreaProvider>
     </UserProvider>
   );

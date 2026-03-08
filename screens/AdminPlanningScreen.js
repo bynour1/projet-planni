@@ -1,11 +1,12 @@
 import { addDays, format, startOfWeek } from "date-fns";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Header from "../components/Header";
 import { usePlanning } from "../contexts/PlanningContext";
 
 export default function AdminPlanningScreen() {
-    
+    const router = useRouter();
   const { planning, addEvent } = usePlanning();
 
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -17,6 +18,30 @@ export default function AdminPlanningScreen() {
   const handleAdd = (dayLabel) => {
     if (!form.medecin || !form.technicien || !form.adresse || !form.heureDebut || !form.heureFin) return;
     addEvent(dayLabel, form.medecin, form.technicien, form.adresse, form.heureDebut, form.heureFin);
+    setForm({ medecin: "", technicien: "", adresse: "", heureDebut: "", heureFin: "" });
+    setAddingDay(null);
+  };
+
+  const handleAddAndClinico = (dayLabel) => {
+    if (!form.medecin || !form.technicien || !form.adresse || !form.heureDebut || !form.heureFin) return;
+    
+    // Enregistrer dans le planning
+    addEvent(dayLabel, form.medecin, form.technicien, form.adresse, form.heureDebut, form.heureFin);
+    
+    // Naviguer vers Clino_Mobile avec les données pré-remplies
+    router.push({
+      pathname: '/clinique-mobile',
+      params: {
+        prefilledData: JSON.stringify({
+          date: dayLabel.split(' ')[1], // Extraire la date (ex: "24/02")
+          heure: form.heureDebut,
+          medecin: form.medecin,
+          adresse: form.adresse,
+          commentaire: `Intervention depuis planning - ${form.technicien}`
+        })
+      }
+    });
+    
     setForm({ medecin: "", technicien: "", adresse: "", heureDebut: "", heureFin: "" });
     setAddingDay(null);
   };
@@ -87,9 +112,26 @@ export default function AdminPlanningScreen() {
                     value={form.adresse}
                     onChangeText={(text) => setForm({ ...form, adresse: text })}
                   />
-                  <TouchableOpacity style={styles.addButton} onPress={() => handleAdd(dayLabel)}>
-                    <Text style={styles.addText}>💾 Enregistrer</Text>
-                  </TouchableOpacity>
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity 
+                      style={[styles.addButton, { flex: 1, marginRight: 5 }]} 
+                      onPress={() => handleAdd(dayLabel)}
+                    >
+                      <Text style={styles.addText}>💾 Enregistrer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.clinoButton, { flex: 0.8, marginHorizontal: 5 }]} 
+                      onPress={() => handleAddAndClinico(dayLabel)}
+                    >
+                      <Text style={styles.addText}>🚑 Clino</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.cancelButton, { flex: 0.7, marginLeft: 5 }]} 
+                      onPress={() => setAddingDay(null)}
+                    >
+                      <Text style={styles.addText}>✕ Fermer</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ) : (
                 <TouchableOpacity style={styles.addButton} onPress={() => setAddingDay(dayLabel)}>
@@ -116,6 +158,9 @@ const styles = StyleSheet.create({
   eventTime: { fontWeight: "bold", fontSize: 14, color: "#007bff", marginBottom: 5 },
   timeRow: { flexDirection: "row", justifyContent: "space-between" },
   input: { borderWidth: 1, borderColor: "#ccc", padding: 8, borderRadius: 5, marginBottom: 5 },
+  buttonRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
   addButton: { backgroundColor: "#007bff", padding: 10, borderRadius: 8, alignItems: "center", marginTop: 5 },
+  clinoButton: { backgroundColor: "#e74c3c", padding: 10, borderRadius: 8, alignItems: "center", marginTop: 5 },
+  cancelButton: { backgroundColor: "#6c757d", padding: 10, borderRadius: 8, alignItems: "center", marginTop: 5 },
   addText: { color: "#fff", fontWeight: "bold" },
 });
